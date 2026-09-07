@@ -1,31 +1,13 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { Ausente } from '@/components/ausente';
 import { Moneda } from '@/components/moneda';
 import { Monto } from '@/components/monto';
+import { fechaDeHoy } from '@/lib/fecha';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
-import type { DocumentoProforma } from '@/lib/proformas';
-
-export type CamposDocumento = {
-  numero: string;
-  observaciones: string;
-  condiciones: string;
-};
-
-export const CONDICIONES_POR_DEFECTO =
-  'Validez de la proforma: 15 días corridos desde la fecha de emisión.\n' +
-  'Los precios están sujetos a confirmación de stock al momento del pedido.\n' +
-  'Forma de pago y plazo de entrega a convenir con la orden de compra.';
-
-/** Fecha de hoy en formato ISO, tomada del reloj local. */
-function fechaDeHoy(): string {
-  const ahora = new Date();
-  const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-  const dia = String(ahora.getDate()).padStart(2, '0');
-  return `${ahora.getFullYear()}-${mes}-${dia}`;
-}
+import type { CamposDocumento, DocumentoProforma } from '@/lib/proformas';
 
 /**
  * Textarea que crece con su contenido, para que en papel no quede texto
@@ -42,12 +24,21 @@ function AreaEditable({
 }) {
   const referencia = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  const ajustarAlto = useCallback(() => {
     const campo = referencia.current;
     if (!campo) return;
     campo.style.height = 'auto';
     campo.style.height = `${campo.scrollHeight}px`;
-  }, [valor]);
+  }, []);
+
+  useEffect(ajustarAlto, [ajustarAlto, valor]);
+
+  // Al cambiar el ancho —girar el teléfono, abrir el teclado— el texto se
+  // reparte en otra cantidad de renglones y la caja tiene que volver a medirse.
+  useEffect(() => {
+    window.addEventListener('resize', ajustarAlto);
+    return () => window.removeEventListener('resize', ajustarAlto);
+  }, [ajustarAlto]);
 
   return (
     <>
@@ -120,8 +111,10 @@ export function Documento({
         <span className="doc-cliente-nombre">{cliente}</span>
       </section>
 
-      <div className="tabla-scroll">
-        <table className="doc-tabla">
+      {/* En pantallas angostas la tabla se reacomoda: cada renglón pasa a ser
+          una ficha y el rótulo de cada monto sale del data-rotulo. En papel no
+          cambia nada, sigue siendo la tabla de cuatro columnas. */}
+      <table className="doc-tabla">
         <colgroup>
           <col style={{ width: '42%' }} />
           <col style={{ width: '14%' }} />
@@ -147,34 +140,33 @@ export function Documento({
                   <span className="doc-obs">{renglon.observaciones}</span>
                 ) : null}
               </td>
-              <td className="doc-num">
+              <td className="doc-num" data-rotulo="Metros">
                 <Monto monto={renglon.metros} marca="Sin metros" />
               </td>
-              <td className="doc-num">
+              <td className="doc-num" data-rotulo="Precio unitario">
                 {renglon.precioUnitario === null ? (
                   <Ausente>Sin precio</Ausente>
                 ) : (
-                  <>
+                  <span>
                     {formatearMonto(renglon.precioUnitario)}{' '}
                     <Moneda moneda={documento.moneda} />
-                  </>
+                  </span>
                 )}
               </td>
-              <td className="doc-num">
+              <td className="doc-num" data-rotulo="Total">
                 {renglon.total === null ? (
                   <Ausente>Sin total</Ausente>
                 ) : (
-                  <>
+                  <span>
                     {formatearMonto(renglon.total)}{' '}
                     <Moneda moneda={documento.moneda} />
-                  </>
+                  </span>
                 )}
               </td>
             </tr>
           ))}
         </tbody>
-        </table>
-      </div>
+      </table>
 
       <section className="doc-totales">
         <div className="doc-total">

@@ -67,8 +67,8 @@ export function ListaClientes({ bloques }: { bloques: Bloque[] }) {
   return (
     <div>
       <div className="panel mt-6 p-4">
-        <div className="flex flex-wrap items-end gap-6">
-          <div className="w-80">
+        <div className="flex flex-wrap items-end gap-4 sm:gap-6">
+          <div className="w-full sm:w-80">
             <label className="etiqueta" htmlFor="buscador">
               Buscar cliente
             </label>
@@ -89,7 +89,7 @@ export function ListaClientes({ bloques }: { bloques: Bloque[] }) {
 
           <button
             type="button"
-            className="boton ml-auto"
+            className="boton w-full sm:ml-auto sm:w-auto"
             onClick={exportar}
             disabled={exportando}
           >

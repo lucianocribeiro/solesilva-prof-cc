@@ -3,7 +3,7 @@
 Aplicación web interna con dos pantallas: **cuenta corriente** y **proformas**.
 
 Los datos se leen de una base de Airtable de solo lectura. La cuenta corriente
-se exporta a Excel y las proformas se imprimen.
+se exporta a Excel y las proformas se imprimen o se mandan en PDF.
 
 ## Requisitos
 
@@ -132,6 +132,43 @@ al exportar. SheetJS Community Edition no escribe estilos de celda, así que los
 encabezados van sin negrita y sin panel fijo: es cosmético y no cambia los
 datos.
 
+## PDF de la proforma
+
+Junto al botón de imprimir hay uno que genera el PDF del documento visible: uno
+solo, el de la moneda que está abierta, igual que la impresión. El archivo se
+llama `proforma-<número>-<cliente>.pdf` e incluye lo que el usuario escribió en
+observaciones y condiciones.
+
+El PDF se **dibuja** en el navegador con jsPDF, no se captura de la pantalla. El
+texto es texto de verdad —seleccionable, buscable y copiable— y una proforma
+pesa alrededor de diez kB. Se usa Helvetica, una de las catorce fuentes
+estándar del formato, así que no hay que embeber ninguna tipografía; su
+codificación cubre todo el español. Se descartó generar el PDF en el servidor
+con un Chromium sin cabeza: son unos cincuenta MB en la función de Vercel y un
+arranque en frío de segundos para maquetar una tabla, un bloque de totales y dos
+párrafos. La librería se carga a pedido, igual que la de Excel.
+
+El archivo no se guarda en ningún lado: no va al servidor, no va a Airtable y no
+pasa por ningún servicio externo.
+
+En el celular, el botón abre el menú de compartir del sistema con el PDF
+adjunto, para elegir WhatsApp desde ahí. En escritorio ese menú tiene soporte
+irregular, así que la app pregunta si existe: donde está, comparte; donde no, el
+botón dice **Descargar PDF**, baja el archivo y avisa que hay que adjuntarlo a
+mano. El rótulo nunca promete algo que el navegador no puede hacer. Cancelar el
+menú de compartir no muestra ningún error.
+
+## Pantallas angostas
+
+El documento está maquetado para hoja A4 y en un teléfono la tabla de cuatro
+columnas no entra. En vez de dejarla scrollear de costado —que obliga a
+arrastrar para leer un total— por debajo de 640 px cada renglón se reacomoda
+como una ficha, con el código arriba y los montos rotulados debajo.
+
+Todo eso vive en un bloque `@media screen and (max-width: 640px)` de
+`globals.css`: no lo ve la impresora. En papel el documento sigue siendo la
+misma hoja A4 con su tabla de cuatro columnas.
+
 ## Estructura
 
 ```
@@ -139,7 +176,7 @@ src/
   app/
     (app)/                    layout protegido: encabezado, navegación y salir
       cuenta-corriente/       saldos por cliente, buscador y exportación
-      proformas/              armado e impresión del documento
+      proformas/              armado, impresión y PDF del documento
     login/                    pantalla de acceso
     globals.css               colores, tipografía y clases de tabla compartidas
     layout.tsx                layout raíz
@@ -148,6 +185,8 @@ src/
   lib/
     airtable.ts               lectura de Airtable: paginación, cache y errores
     exportar-excel.ts         generación del archivo de Excel en el navegador
+    pdf-proforma.ts           dibujo del PDF de la proforma en el navegador
+    compartir.ts              menú de compartir del sistema, con descarga de respaldo
     datos.ts                  cuenta corriente: clientes, saldos y movimientos
     renglones-venta.ts        renglones de venta para proformas
     auth-actions.ts           Server Actions de ingresar y salir

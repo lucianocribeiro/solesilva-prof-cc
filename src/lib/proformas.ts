@@ -21,6 +21,22 @@ export type FiltroFecha = 'todas' | string | null;
 
 export const TODAS_LAS_FECHAS = 'todas';
 
+/**
+ * Lo que el usuario escribe sobre el documento. No sale de Airtable ni vuelve a
+ * la base: vive en la pantalla y viaja al papel y al PDF tal como se escribió.
+ */
+export type CamposDocumento = {
+  numero: string;
+  observaciones: string;
+  condiciones: string;
+};
+
+/** Texto con el que arranca el bloque de condiciones. El usuario puede cambiarlo. */
+export const CONDICIONES_POR_DEFECTO =
+  'Validez de la proforma: 15 días corridos desde la fecha de emisión.\n' +
+  'Los precios están sujetos a confirmación de stock al momento del pedido.\n' +
+  'Forma de pago y plazo de entrega a convenir con la orden de compra.';
+
 export type DocumentoProforma = {
   moneda: string | null;
   /** Clave estable para el estado de la pantalla y para las keys de React. */

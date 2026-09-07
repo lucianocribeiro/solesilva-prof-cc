@@ -1,27 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Ausente } from '@/components/ausente';
 import { Fecha } from '@/components/fecha';
 import { Moneda } from '@/components/moneda';
 import { Monto } from '@/components/monto';
+import { compartirArchivo, sePuedeCompartirArchivos } from '@/lib/compartir';
+import { fechaDeHoy } from '@/lib/fecha';
 import { formatearFecha } from '@/lib/formato';
+import { generarPdfProforma, precargarPdf } from '@/lib/pdf-proforma';
 import {
   armarDocumentos,
   clientesConVentas,
+  CONDICIONES_POR_DEFECTO,
   fechasDeCliente,
   renglonesDe,
   TODAS_LAS_FECHAS,
+  type CamposDocumento,
   type FiltroFecha,
 } from '@/lib/proformas';
 import type { RenglonVenta } from '@/lib/renglones-venta';
 
-import {
-  CONDICIONES_POR_DEFECTO,
-  Documento,
-  type CamposDocumento,
-} from './documento';
+import { Documento } from './documento';
 
 /** Valor del <option> que representa los renglones sin fecha cargada. */
 const SIN_FECHA = '__sin_fecha__';
@@ -48,6 +49,18 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
   const [indiceActivo, setIndiceActivo] = useState(0);
   const [campos, setCampos] = useState<Record<string, CamposDocumento>>({});
 
+  const [generando, setGenerando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [errorPdf, setErrorPdf] = useState<string | null>(null);
+
+  /**
+   * Si el navegador puede compartir archivos se sabe recién en el cliente, así
+   * que el botón nace rotulado "Descargar PDF" y se corrige después del primer
+   * render. Nunca dice "Compartir" donde no se puede compartir.
+   */
+  const [puedeCompartir, setPuedeCompartir] = useState(false);
+  useEffect(() => setPuedeCompartir(sePuedeCompartirArchivos()), []);
+
   const clientes = clientesConVentas(renglones);
   const fechas = cliente ? fechasDeCliente(renglones, cliente) : [];
 
@@ -62,6 +75,27 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
   const documentos = armarDocumentos(seleccionados);
   const activo = Math.min(indiceActivo, Math.max(documentos.length - 1, 0));
   const documento = documentos[activo];
+
+  /**
+   * El aviso habla del archivo que se acaba de generar. Si cambia lo que está
+   * en pantalla —otra moneda, otros renglones tildados— deja de corresponder,
+   * así que se borra.
+   */
+  const firmaDelDocumento = documento
+    ? `${documento.clave}|${documento.renglones.map((r) => r.id).join(',')}`
+    : '';
+
+  useEffect(() => {
+    setAviso(null);
+    setErrorPdf(null);
+  }, [firmaDelDocumento]);
+
+  const camposDelDocumento = (clave: string, numeroSugerido: string) =>
+    campos[clave] ?? {
+      numero: numeroSugerido,
+      observaciones: '',
+      condiciones: CONDICIONES_POR_DEFECTO,
+    };
 
   function elegirCliente(nuevo: string) {
     setCliente(nuevo);
@@ -86,15 +120,51 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
 
   function cambiarCampo(campo: keyof CamposDocumento, valor: string) {
     if (!documento) return;
-    const actuales = campos[documento.clave] ?? {
-      numero: documento.numeroSugerido,
-      observaciones: '',
-      condiciones: CONDICIONES_POR_DEFECTO,
-    };
+    const actuales = camposDelDocumento(documento.clave, documento.numeroSugerido);
     setCampos((previos) => ({
       ...previos,
       [documento.clave]: { ...actuales, [campo]: valor },
     }));
+  }
+
+  /**
+   * Genera el PDF del documento que se está viendo —uno solo, el de la moneda
+   * abierta, igual que la impresión— y lo pasa al menú de compartir del
+   * sistema. Donde ese menú no existe, el archivo se descarga y se avisa que
+   * hay que adjuntarlo a mano.
+   */
+  async function compartir() {
+    if (!documento) return;
+
+    setGenerando(true);
+    setAviso(null);
+    setErrorPdf(null);
+
+    try {
+      const datos = camposDelDocumento(documento.clave, documento.numeroSugerido);
+      const archivo = await generarPdfProforma({
+        documento,
+        cliente,
+        campos: datos,
+        fecha: fechaDeHoy(),
+      });
+
+      const resultado = await compartirArchivo(
+        archivo,
+        `Proforma ${datos.numero} — ${cliente}`,
+      );
+
+      if (resultado === 'descargado') {
+        setAviso(
+          'Se descargó el PDF. Para mandarlo por WhatsApp, adjuntalo a mano desde la conversación.',
+        );
+      }
+      // Compartido no necesita aviso, y cancelado tampoco: no es un error.
+    } catch {
+      setErrorPdf('No se pudo generar el PDF. Probá de nuevo.');
+    } finally {
+      setGenerando(false);
+    }
   }
 
   return (
@@ -107,8 +177,8 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
           renglones. Si hay más de una moneda sale un documento por cada una.
         </p>
 
-        <div className="panel mt-6 flex flex-wrap gap-6 p-4">
-          <div className="w-72">
+        <div className="panel mt-6 flex flex-wrap gap-4 p-4 sm:gap-6">
+          <div className="w-full sm:w-72">
             <label className="etiqueta" htmlFor="cliente">
               Cliente
             </label>
@@ -127,7 +197,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
             </select>
           </div>
 
-          <div className="w-56">
+          <div className="w-full sm:w-56">
             <label className="etiqueta" htmlFor="fecha">
               Fecha
             </label>
@@ -236,7 +306,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
 
       {documento ? (
         <section className="mt-8">
-          <div className="no-imprimir mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="no-imprimir mb-4 flex flex-wrap items-start justify-between gap-4">
             <div>
               {documentos.length > 1 ? (
                 <>
@@ -244,7 +314,9 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
                     Los renglones tildados tienen {documentos.length} monedas
                     distintas, así que sale un documento por cada una.
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  {/* Con poco ancho las solapas envuelven; cada una lleva su
+                      borde para que se lea como algo que se puede tocar. */}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {documentos.map((otro, indice) => (
                       <button
                         key={otro.clave}
@@ -253,8 +325,8 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
                         aria-current={indice === activo ? 'true' : undefined}
                         className={
                           indice === activo
-                            ? 'rounded bg-acento-suave px-2.5 py-1 text-sm font-medium text-acento'
-                            : 'rounded px-2.5 py-1 text-sm text-texto-suave hover:bg-superficie-alt hover:text-texto'
+                            ? 'rounded border border-acento bg-acento-suave px-3 py-1.5 text-sm font-medium text-acento'
+                            : 'rounded border border-borde-fuerte bg-superficie px-3 py-1.5 text-sm text-texto-suave hover:bg-superficie-alt hover:text-texto'
                         }
                       >
                         {otro.moneda ?? 'Sin moneda'}
@@ -269,28 +341,57 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
               )}
             </div>
 
-            <button
-              type="button"
-              className="boton"
-              onClick={() => window.print()}
-            >
-              Imprimir
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="boton-secundario"
+                onClick={compartir}
+                // La librería del PDF se adelanta al click: compartir tiene que
+                // pasar dentro del gesto del usuario.
+                onPointerDown={precargarPdf}
+                onFocus={precargarPdf}
+                disabled={generando}
+              >
+                {generando
+                  ? 'Generando…'
+                  : puedeCompartir
+                    ? 'Compartir PDF'
+                    : 'Descargar PDF'}
+              </button>
+
+              <button
+                type="button"
+                className="boton"
+                onClick={() => window.print()}
+              >
+                Imprimir
+              </button>
+            </div>
           </div>
 
-          {/* El id lo lleva solo el documento visible: es lo único que se imprime. */}
+          {aviso ? (
+            <p className="no-imprimir mb-4 text-sm texto-suave" role="status">
+              {aviso}
+            </p>
+          ) : null}
+
+          {errorPdf ? (
+            <p className="mensaje-error no-imprimir mb-4" role="alert">
+              {errorPdf}
+            </p>
+          ) : null}
+
+          {/* El id lo lleva solo el documento visible: es lo único que se imprime
+              y lo único que sale en el PDF. */}
           <div id="documento-proforma">
             <Documento
               key={documento.clave}
               documento={documento}
               cliente={cliente}
-              campos={
-                campos[documento.clave] ?? {
-                  numero: documento.numeroSugerido,
-                  observaciones: '',
-                  condiciones: CONDICIONES_POR_DEFECTO,
-                }
-              }
+              campos={camposDelDocumento(
+                documento.clave,
+                documento.numeroSugerido,
+              )}
               onCambiar={cambiarCampo}
             />
           </div>
