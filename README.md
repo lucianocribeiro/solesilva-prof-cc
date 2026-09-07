@@ -1,36 +1,165 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sole Silva — Administración
 
-## Getting Started
+Aplicación web interna con dos pantallas: **cuenta corriente** y **proformas**.
 
-First, run the development server:
+Los datos se leen de una base de Airtable de solo lectura. La cuenta corriente
+se exporta a Excel y las proformas se imprimen.
+
+## Requisitos
+
+- Node.js 20 o superior
+- npm
+
+## Cómo levantarlo en local
+
+1. Instalá las dependencias:
+
+   ```bash
+   npm install
+   ```
+
+2. Copiá el archivo de ejemplo y completalo:
+
+   ```bash
+   cp .env.local.example .env.local
+   ```
+
+3. Completá las cuatro variables en `.env.local`:
+
+   | Variable | Para qué sirve |
+   | --- | --- |
+   | `APP_PASSWORD` | La contraseña única con la que entra todo el equipo. |
+   | `SESSION_SECRET` | Clave con la que se firma la cookie de sesión. |
+   | `AIRTABLE_TOKEN` | Token de Airtable, de solo lectura, limitado a esta base. |
+   | `AIRTABLE_BASE_ID` | Id de la base. Empieza con `app`. |
+
+   Las cuatro son obligatorias: si falta alguna, el servidor no arranca y dice
+   cuál falta. Ninguna lleva el prefijo `NEXT_PUBLIC_`, así que ninguna llega al
+   navegador.
+
+   Para generar el secreto de sesión:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+### Cómo generar el token de Airtable
+
+El token tiene que ser de **solo lectura** y estar limitado a esta base. La app
+nunca escribe en Airtable.
+
+1. Entrá a <https://airtable.com/create/tokens> y creá un personal access token.
+2. En **Scopes**, agregá exactamente estos dos y ninguno más:
+   - `data.records:read` — leer los registros de las tablas.
+   - `schema.bases:read` — leer los nombres de tablas y campos.
+3. En **Access**, elegí solamente la base de la app. No le des acceso al
+   workspace entero ni a otras bases.
+4. Copiá el token, que empieza con `pat`, y pegalo en `AIRTABLE_TOKEN`. Airtable
+   lo muestra una sola vez.
+
+El id de la base sale de la URL cuando la abrís:
+`https://airtable.com/<AIRTABLE_BASE_ID>/...`
+
+4. Levantá el servidor:
+
+   ```bash
+   npm run dev
+   ```
+
+   Abrí http://localhost:3000. Te va a redirigir a `/login`.
+
+## Build de producción
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Cómo funciona el acceso
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Hay una sola contraseña para todo el equipo. No hay usuarios ni roles.
+- La contraseña se compara **solo en el servidor**, dentro de una Server Action.
+  Nunca llega al navegador ni queda en el bundle del cliente.
+- Si es correcta, se guarda una cookie `sesion` firmada con HMAC-SHA256 usando
+  `SESSION_SECRET`. Es `httpOnly`, `sameSite=lax`, `secure` en producción y dura
+  7 días.
+- Un middleware valida la firma y el vencimiento de la cookie en cada request.
+  Sin cookie válida, cualquier ruta redirige a `/login`.
+- El botón **Salir** del encabezado borra la cookie y vuelve al login.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Si cambiás `SESSION_SECRET`, todas las sesiones abiertas dejan de valer.
 
-## Learn More
+## Datos
 
-To learn more about Next.js, take a look at the following resources:
+Los datos se leen de Airtable **desde el servidor**: el token nunca llega al
+navegador. Se leen cuatro tablas —Clientes, Ventas, Cobranzas y Artículos— con
+paginación completa, porque Airtable devuelve como máximo 100 registros por
+página.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Las respuestas se cachean 5 minutos. El botón **Actualizar datos** del
+encabezado fuerza la relectura sin esperar ese plazo.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+La app es un espejo de la base: no valida, no corrige, no completa y no
+convierte. Un campo vacío en Airtable se muestra con una marca (*Sin fecha*,
+*Sin moneda*, *Sin precio*, *Sin metros*, *Sin artículo*), nunca como un cero.
+Los subtotales los calcula la app desde los movimientos, separados por moneda;
+los campos calculados de Airtable que consolidan todo a dólares no se usan.
 
-## Deploy on Vercel
+El saldo inicial de la tabla Clientes es un número sin campo de moneda al lado,
+así que se lee como dólares. Esa suposición vive en la constante
+`MONEDA_SALDO_INICIAL` de `src/lib/datos.ts`, en un solo lugar.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Exportación a Excel
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+El botón **Exportar a Excel** de la cuenta corriente genera el archivo en el
+navegador, con los datos que la pantalla ya tiene: no se vuelve a leer Airtable,
+así el archivo siempre coincide con lo que se ve. Se exporta lo visible —lo
+filtrado si el buscador tiene texto— más el bloque de movimientos sin cliente
+asignado, que va siempre.
+
+El archivo tiene dos hojas, *Subtotales* (una fila por cliente y moneda) y
+*Movimientos* (una fila por movimiento). Los montos van como números y las
+fechas como fechas de Excel, para poder sumar, ordenar y filtrar. Un campo sin
+cargar queda como celda vacía, no como cero.
+
+Las fechas se escriben como número de serie de Excel y no como `Date`: un `Date`
+se serializa como instante UTC y en cualquier zona detrás de Greenwich la celda
+termina mostrando el día anterior.
+
+Se usa SheetJS oficial, instalado desde el CDN de SheetJS y no desde npm,
+porque el paquete `xlsx` de npm quedó viejo. La librería se carga a pedido, solo
+al exportar. SheetJS Community Edition no escribe estilos de celda, así que los
+encabezados van sin negrita y sin panel fijo: es cosmético y no cambia los
+datos.
+
+## Estructura
+
+```
+src/
+  app/
+    (app)/                    layout protegido: encabezado, navegación y salir
+      cuenta-corriente/       saldos por cliente, buscador y exportación
+      proformas/              armado e impresión del documento
+    login/                    pantalla de acceso
+    globals.css               colores, tipografía y clases de tabla compartidas
+    layout.tsx                layout raíz
+    page.tsx                  "/" redirige a /cuenta-corriente
+  components/                 marcas compartidas: fecha, moneda, monto ausente
+  lib/
+    airtable.ts               lectura de Airtable: paginación, cache y errores
+    exportar-excel.ts         generación del archivo de Excel en el navegador
+    datos.ts                  cuenta corriente: clientes, saldos y movimientos
+    renglones-venta.ts        renglones de venta para proformas
+    auth-actions.ts           Server Actions de ingresar y salir
+    env.ts                    lectura y validación de variables de entorno
+    session.ts                firma y validación de la cookie de sesión
+  instrumentation.ts          valida las variables al arrancar el servidor
+  middleware.ts               protege todas las rutas
+```
+
+## Estilo
+
+Los colores y las clases reutilizables están definidos en `src/app/globals.css`
+(`@theme` para los tokens, `@layer components` para las clases). Las fases
+siguientes deberían usar esas clases —`.panel`, `.tabla`, `.tabla-num`,
+`.campo`, `.boton`— en vez de inventar estilos nuevos.

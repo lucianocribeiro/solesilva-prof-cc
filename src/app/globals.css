@@ -1,26 +1,376 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ---------------------------------------------------------------------------
+   Paleta y tokens de la app.
+   Herramienta interna: fondo claro, contraste alto, sin gradientes ni sombras
+   marcadas. Todo lo que se repita en las próximas fases sale de acá.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-fondo: #f4f4f2;
+  --color-superficie: #ffffff;
+  --color-superficie-alt: #fafaf9;
+
+  --color-borde: #e0e0dc;
+  --color-borde-fuerte: #c9c9c3;
+
+  --color-texto: #1b1b19;
+  --color-texto-suave: #6a6a64;
+
+  --color-acento: #26557f;
+  --color-acento-suave: #eaf0f6;
+
+  --color-positivo: #1f6b3a;
+  --color-negativo: #a12a20;
+  --color-alerta-fondo: #fdecea;
+  --color-alerta-borde: #f0c4bf;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-fondo);
+  color: var(--color-texto);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------------------
+   Clases reutilizables.
+--------------------------------------------------------------------------- */
+
+@layer components {
+  /* Contenedor de ancho fijo para el contenido de las páginas. */
+  .contenedor {
+    @apply mx-auto w-full max-w-6xl px-6;
+  }
+
+  .titulo-pagina {
+    @apply text-lg font-semibold tracking-tight text-texto;
+  }
+
+  .texto-suave {
+    @apply text-texto-suave;
+  }
+
+  /* Panel blanco con borde: la unidad básica de la interfaz. */
+  .panel {
+    @apply rounded border border-borde bg-superficie;
+  }
+
+  .panel-encabezado {
+    @apply flex items-center justify-between border-b border-borde px-4 py-2.5;
+  }
+
+  /* --- Tablas -------------------------------------------------------------
+     Densas, alineadas, pensadas para leer números durante horas.
+     Uso: <table className="tabla"> con <th>/<td> normales.
+     Para columnas de montos agregar className="tabla-num".
+  ------------------------------------------------------------------------ */
+  .tabla {
+    @apply w-full border-collapse text-left;
+  }
+
+  .tabla thead th {
+    @apply border-b border-borde-fuerte bg-superficie-alt px-3 py-2
+      text-xs font-semibold uppercase tracking-wide text-texto-suave;
+  }
+
+  .tabla tbody td {
+    @apply border-b border-borde px-3 py-1.5 align-top;
+  }
+
+  .tabla tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .tabla tbody tr:hover td {
+    @apply bg-superficie-alt;
+  }
+
+  .tabla tfoot td {
+    @apply border-t border-borde px-3 py-2 font-semibold;
+  }
+
+  /* Solo la primera fila del pie lleva la línea fuerte que lo separa del cuerpo. */
+  .tabla tfoot tr:first-child td {
+    @apply border-borde-fuerte;
+  }
+
+  /* En pantallas angostas la tabla scrollea dentro de su panel, en vez de
+     empujar el ancho de toda la página. */
+  .tabla-scroll {
+    @apply w-full overflow-x-auto;
+  }
+
+  /* Celda de monto o cantidad: alineada a la derecha, cifras de ancho fijo. */
+  .tabla-num {
+    @apply text-right tabular-nums;
+  }
+
+  .monto-positivo {
+    @apply text-positivo;
+  }
+
+  .monto-negativo {
+    @apply text-negativo;
+  }
+
+  /* --- Formularios -------------------------------------------------------- */
+  .etiqueta {
+    @apply mb-1.5 block text-sm font-medium text-texto;
+  }
+
+  .campo {
+    @apply w-full rounded border border-borde-fuerte bg-superficie px-3 py-2
+      text-sm text-texto outline-none
+      focus:border-acento focus:ring-1 focus:ring-acento;
+  }
+
+  .boton {
+    @apply inline-flex items-center justify-center rounded border
+      border-transparent bg-acento px-4 py-2 text-sm font-medium text-white
+      hover:opacity-90 focus-visible:outline focus-visible:outline-2
+      focus-visible:outline-offset-2 focus-visible:outline-acento
+      disabled:opacity-60;
+  }
+
+  .boton-secundario {
+    @apply inline-flex items-center justify-center rounded border border-borde-fuerte
+      bg-superficie px-3 py-1.5 text-sm text-texto hover:bg-superficie-alt
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-acento disabled:opacity-60;
+  }
+
+
+  /* --- Documento imprimible -----------------------------------------------
+     El documento se lee como papel, no como pantalla: fondo blanco, aire
+     generoso y jerarquía clara. Todas las separaciones entre rótulo y valor
+     son explícitas; nada depende del espacio en blanco del HTML.
+     Se ve igual en pantalla y en papel.
+  ---------------------------------------------------------------------- */
+  .hoja {
+    @apply mx-auto w-full max-w-[210mm] border border-borde bg-superficie
+      px-12 py-11 text-texto;
+  }
+
+  /* Rótulo chico y gris que va arriba de cada valor. */
+  .doc-rotulo {
+    @apply mb-1.5 block text-[10px] font-medium uppercase tracking-[0.14em]
+      text-texto-suave;
+  }
+
+  /* --- Encabezado: título a la izquierda, datos a la derecha -------------- */
+  .doc-encabezado {
+    @apply flex items-start justify-between gap-12 pb-7;
+  }
+
+  .doc-titulo {
+    @apply text-3xl font-semibold uppercase leading-none tracking-[0.22em];
+  }
+
+  .doc-aclaracion {
+    @apply mt-3 block text-[11px] uppercase tracking-wide text-texto-suave;
+  }
+
+  .doc-meta {
+    @apply w-56 shrink-0 text-right;
+  }
+
+  .doc-meta > div + div {
+    @apply mt-4;
+  }
+
+  .doc-meta dd {
+    @apply m-0 text-sm font-semibold tabular-nums;
+  }
+
+  /* Línea firme que cierra el encabezado. */
+  .doc-regla {
+    @apply m-0 border-0 border-t border-borde-fuerte;
+  }
+
+  .doc-cliente {
+    @apply pt-7;
+  }
+
+  .doc-cliente-nombre {
+    @apply text-base font-semibold;
+  }
+
+  /* --- Detalle ------------------------------------------------------------ */
+  /* table-fixed con colgroup: las columnas miden lo mismo en pantalla y en
+     papel, y al código le queda aire para las observaciones del renglón. */
+  .doc-tabla {
+    @apply mt-9 w-full table-fixed border-collapse text-left;
+  }
+
+  .doc-tabla thead th {
+    @apply border-b border-borde-fuerte pb-2 text-[10px] font-medium uppercase
+      tracking-[0.14em] text-texto-suave;
+  }
+
+  .doc-tabla tbody td {
+    @apply border-b border-borde py-3 align-top;
+  }
+
+  /* Separación explícita entre columnas, para que nada quede pegado. */
+  .doc-tabla th + th,
+  .doc-tabla td + td {
+    @apply pl-8;
+  }
+
+  .doc-tabla .doc-num {
+    @apply text-right tabular-nums;
+  }
+
+  /* Las observaciones del renglón siempre en su propia línea. */
+  .doc-obs {
+    @apply mt-1.5 block max-w-[115mm] text-xs leading-snug text-texto-suave;
+  }
+
+  /* --- Totales ------------------------------------------------------------ */
+  .doc-totales {
+    @apply mt-8 ml-auto w-80;
+  }
+
+  .doc-total {
+    @apply flex items-baseline justify-between gap-10 py-1.5 text-sm;
+  }
+
+  .doc-total-rotulo {
+    @apply text-texto-suave;
+  }
+
+  .doc-total-valor {
+    @apply tabular-nums;
+  }
+
+  .doc-total-final {
+    @apply mt-2.5 flex items-baseline justify-between gap-10 border-t
+      border-borde-fuerte pt-3.5;
+  }
+
+  .doc-total-final-rotulo {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em];
+  }
+
+  .doc-total-final-valor {
+    @apply text-xl font-semibold tabular-nums;
+  }
+
+  /* --- Pie ---------------------------------------------------------------- */
+  .doc-pie {
+    @apply mt-14 grid grid-cols-2 gap-10 border-t border-borde pt-8;
+  }
+
+  /* Campos que el usuario edita en pantalla y que en papel salen como texto. */
+  .doc-campo {
+    @apply w-full border-0 border-b border-dashed border-borde-fuerte
+      bg-transparent pb-1 text-right text-sm font-semibold tabular-nums
+      text-texto outline-none focus:border-solid focus:border-acento;
+  }
+
+  .doc-area {
+    @apply w-full resize-none rounded border border-borde bg-transparent p-2.5
+      text-sm leading-relaxed text-texto outline-none focus:border-acento;
+  }
+
+  /* El mismo texto que el usuario editó, pero como texto corrido.
+     Solo se ve al imprimir: así el contenido pagina bien y no lo recorta
+     la caja de alto fijo del campo. */
+  .doc-impreso {
+    @apply hidden whitespace-pre-wrap text-sm leading-relaxed text-texto;
+  }
+
+  .mensaje-error {
+    @apply rounded border border-alerta-borde bg-alerta-fondo px-3 py-2
+      text-sm text-negativo;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Impresión.
+
+   Aislamiento por visibilidad: se apaga todo el árbol y se vuelve a encender
+   únicamente el documento activo. Así no depende de haber marcado a mano cada
+   pieza de la herramienta; lo que no está dentro de #documento-proforma no
+   llega al papel.
+
+   El id lo lleva solo el documento visible, así que con tres monedas en
+   pantalla se imprime la proforma de la pestaña abierta y ninguna otra.
+--------------------------------------------------------------------------- */
+
+@page {
+  size: A4;
+  margin: 18mm;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #documento-proforma,
+  #documento-proforma * {
+    visibility: visible;
+  }
+
+  #documento-proforma {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  body {
+    background-color: #fff;
+  }
+
+  /* La hoja en papel no lleva borde ni ancho máximo: el margen lo pone @page. */
+  #documento-proforma .hoja {
+    max-width: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  /* Fuera el botón Imprimir y todo lo que sea herramienta. */
+  .no-imprimir {
+    display: none !important;
+  }
+
+  /* Los campos editables se cambian por su texto: el usuario ve lo que
+     escribió, sin borde, sin fondo y sin caja de alto fijo que lo recorte. */
+  .doc-campo,
+  .doc-area {
+    display: none !important;
+  }
+
+  .doc-impreso {
+    display: block !important;
+  }
+
+  /* En papel no hay scroll: la tabla se imprime entera. */
+  .tabla-scroll {
+    overflow: visible !important;
+  }
+
+  /* Que no se parta una fila ni un bloque del pie entre dos hojas. */
+  tr,
+  .doc-total,
+  .doc-total-final,
+  .doc-pie > div {
+    break-inside: avoid;
+  }
 }
