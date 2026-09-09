@@ -129,17 +129,3 @@ export function vinculos(registro: Registro, campo: string): string[] {
   if (!Array.isArray(valor)) return [];
   return valor.filter((id): id is string => typeof id === 'string');
 }
-
-/** Índice id de registro -> valor de un campo de texto, para resolver vínculos. */
-export async function indicePorCampo(
-  tabla: string,
-  campo: string,
-): Promise<Map<string, string>> {
-  const registros = await leerTabla(tabla);
-  const indice = new Map<string, string>();
-  for (const registro of registros) {
-    const valor = texto(registro, campo);
-    if (valor !== null) indice.set(registro.id, valor);
-  }
-  return indice;
-}

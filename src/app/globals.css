@@ -113,6 +113,20 @@ body {
     @apply w-full overflow-x-auto;
   }
 
+  /* --- Secciones de moneda ------------------------------------------------
+     Dentro del bloque de un cliente, cada moneda es su propia cuenta
+     corriente: encabezado, saldo inicial, movimientos y subtotal. La línea
+     fuerte entre secciones deja claro que una no continúa a la otra.
+  ------------------------------------------------------------------------ */
+  .seccion-moneda + .seccion-moneda {
+    @apply border-t border-borde-fuerte;
+  }
+
+  .seccion-moneda-titulo {
+    @apply border-b border-borde px-4 py-2 text-xs font-semibold uppercase
+      tracking-wide;
+  }
+
   /* Celda de monto o cantidad: alineada a la derecha, cifras de ancho fijo. */
   .tabla-num {
     @apply text-right tabular-nums;
@@ -224,14 +238,21 @@ body {
     @apply border-b border-borde py-3 align-top;
   }
 
-  /* Separación explícita entre columnas, para que nada quede pegado. */
+  /* Separación explícita entre columnas, para que nada quede pegado. Con la
+     columna de descripción son cinco, así que el aire entre ellas se ajusta
+     para que a los montos no les falte ancho. */
   .doc-tabla th + th,
   .doc-tabla td + td {
-    @apply pl-8;
+    @apply pl-6;
   }
 
   .doc-tabla .doc-num {
     @apply text-right tabular-nums;
+  }
+
+  /* Descripción de la tela. Va vacía mientras el dato no esté cargado. */
+  .doc-descripcion {
+    @apply leading-snug;
   }
 
   /* Las observaciones del renglón siempre en su propia línea. */
@@ -306,11 +327,11 @@ body {
    la sigue definiendo únicamente el bloque de más abajo, así que el documento
    sale de la impresora exactamente igual que antes.
 
-   La decisión de fondo es sobre la tabla del documento: cuatro columnas
+   La decisión de fondo es sobre la tabla del documento: cinco columnas
    maquetadas para A4 no entran en un teléfono. Entre dejarla scrollear de
    costado o reacomodarla, se eligió reacomodarla: cada renglón pasa a ser una
-   ficha con sus montos rotulados, uno abajo del otro. Así el total se lee de
-   una, sin zoom y sin arrastrar nada.
+   ficha con el código y la descripción arriba y sus montos rotulados debajo,
+   uno abajo del otro. Así el total se lee de una, sin zoom y sin arrastrar.
 --------------------------------------------------------------------------- */
 
 @media screen and (max-width: 640px) {
@@ -391,6 +412,13 @@ body {
 
   .doc-tabla td + td {
     padding-left: 0;
+  }
+
+  /* La descripción no es un monto: no lleva rótulo ni se alinea a la derecha,
+     va debajo del código como parte de la identificación de la tela. Cuando
+     no está cargada la celda está vacía y no ocupa nada. */
+  .doc-tabla td.doc-descripcion:not(:empty) {
+    padding-top: 0.25rem;
   }
 
   /* Cada monto en su renglón: el rótulo a la izquierda, el valor a la derecha. */

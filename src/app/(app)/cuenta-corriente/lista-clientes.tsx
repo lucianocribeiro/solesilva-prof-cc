@@ -15,8 +15,9 @@ function normalizar(texto: string): string {
     .toLowerCase();
 }
 
+/** Hay sección de moneda solo si esa moneda tiene saldo inicial o movimientos. */
 function tieneActividad(bloque: Bloque): boolean {
-  return bloque.saldosIniciales.length > 0 || bloque.movimientos.length > 0;
+  return bloque.secciones.length > 0;
 }
 
 function claveDe(bloque: Bloque): string {
@@ -28,8 +29,7 @@ export function ListaClientes({ bloques }: { bloques: Bloque[] }) {
   const [exportando, setExportando] = useState(false);
   const [errorExportar, setErrorExportar] = useState<string | null>(null);
 
-  // El bloque de movimientos sin cliente no es un cliente: va siempre al final
-  // y el buscador no lo afecta.
+  // El bloque de movimientos sin cliente no es un cliente: va siempre al final.
   const sinCliente = bloques.find((bloque) => bloque.cliente === null);
   const clientes = bloques.filter((bloque) => bloque.cliente !== null);
 
@@ -49,8 +49,17 @@ export function ListaClientes({ bloques }: { bloques: Bloque[] }) {
 
   const conActividad = clientes.filter(tieneActividad).length;
 
+  /**
+   * Buscar es filtrar: con texto en el buscador, los movimientos sin cliente
+   * asignado no son parte del resultado y no se muestran. Con el buscador
+   * vacío el bloque aparece, porque ahí se está viendo todo.
+   */
+  const sinClienteVisible = termino ? undefined : sinCliente;
+
   // Exactamente lo que se está viendo, en el mismo orden.
-  const enPantalla = sinCliente ? [...visibles, sinCliente] : visibles;
+  const enPantalla = sinClienteVisible
+    ? [...visibles, sinClienteVisible]
+    : visibles;
 
   async function exportar() {
     setExportando(true);
@@ -103,8 +112,8 @@ export function ListaClientes({ bloques }: { bloques: Bloque[] }) {
 
         <p className="mt-3 text-sm texto-suave">
           Se muestran los clientes con saldo inicial o movimientos. Buscá por
-          nombre para ver cualquier otro. La exportación incluye lo que está en
-          pantalla, siempre con los movimientos sin cliente asignado.
+          nombre para ver cualquier otro. El Excel exporta exactamente lo que
+          está en pantalla, siempre.
         </p>
       </div>
 
@@ -119,8 +128,11 @@ export function ListaClientes({ bloques }: { bloques: Bloque[] }) {
           <BloqueCliente key={claveDe(bloque)} bloque={bloque} />
         ))}
 
-        {sinCliente ? (
-          <BloqueCliente key={claveDe(sinCliente)} bloque={sinCliente} />
+        {sinClienteVisible ? (
+          <BloqueCliente
+            key={claveDe(sinClienteVisible)}
+            bloque={sinClienteVisible}
+          />
         ) : null}
       </div>
     </div>

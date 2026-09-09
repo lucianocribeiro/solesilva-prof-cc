@@ -17,6 +17,11 @@ export type RenglonVenta = {
   cliente: string;
   /** Código del artículo. `null` cuando el renglón no tiene artículo vinculado. */
   codigo: string | null;
+  /**
+   * Descripción de la tela, leída del artículo vinculado. Hoy está sin cargar
+   * en toda la base y por eso sale en blanco. No se reemplaza por el código.
+   */
+  descripcion: string | null;
   metros: number | null;
   precioUnitario: number | null;
   moneda: string | null;
@@ -44,10 +49,11 @@ export async function cargarRenglonesVenta(): Promise<RenglonVenta[]> {
     const cliente = idCliente ? nombreDeCliente.get(idCliente) : undefined;
     if (cliente === undefined) continue;
 
-    // El artículo es un vínculo: la API devuelve el id y el código sale de
-    // resolverlo contra la tabla de artículos. Sin vínculo, queda sin código.
+    // El artículo es un vínculo: la API devuelve el id y el código y la
+    // descripción salen de resolverlo contra la tabla de artículos. Sin
+    // vínculo, el renglón queda sin código y sin descripción.
     const [idArticulo] = vinculos(venta, 'Artículo');
-    const codigo = idArticulo ? (articulos.get(idArticulo) ?? null) : null;
+    const articulo = idArticulo ? articulos.get(idArticulo) : undefined;
 
     const observaciones = texto(venta, 'Observaciones');
 
@@ -55,7 +61,8 @@ export async function cargarRenglonesVenta(): Promise<RenglonVenta[]> {
       id: venta.id,
       fecha: texto(venta, 'Fecha'),
       cliente,
-      codigo,
+      codigo: articulo?.codigo ?? null,
+      descripcion: articulo?.descripcion ?? null,
       metros: numero(venta, 'Metros'),
       precioUnitario: numero(venta, 'Precio unitario (fijado)'),
       // Campo calculado en Airtable: se toma tal cual viene.

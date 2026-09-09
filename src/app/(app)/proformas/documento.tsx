@@ -113,17 +113,19 @@ export function Documento({
 
       {/* En pantallas angostas la tabla se reacomoda: cada renglón pasa a ser
           una ficha y el rótulo de cada monto sale del data-rotulo. En papel no
-          cambia nada, sigue siendo la tabla de cuatro columnas. */}
+          cambia nada, sigue siendo la tabla de cinco columnas. */}
       <table className="doc-tabla">
         <colgroup>
-          <col style={{ width: '42%' }} />
+          <col style={{ width: '24%' }} />
+          <col style={{ width: '24%' }} />
           <col style={{ width: '14%' }} />
-          <col style={{ width: '22%' }} />
-          <col style={{ width: '22%' }} />
+          <col style={{ width: '19%' }} />
+          <col style={{ width: '19%' }} />
         </colgroup>
         <thead>
           <tr>
             <th>Código</th>
+            <th>Descripción</th>
             <th className="doc-num">Metros</th>
             <th className="doc-num">Precio unitario</th>
             <th className="doc-num">Total</th>
@@ -140,6 +142,10 @@ export function Documento({
                   <span className="doc-obs">{renglon.observaciones}</span>
                 ) : null}
               </td>
+              {/* La descripción sale del artículo vinculado. Si no está
+                  cargada, la celda va vacía: es una proforma que ve el
+                  cliente y no se inventa un texto que la base no tiene. */}
+              <td className="doc-descripcion">{renglon.descripcion}</td>
               <td className="doc-num" data-rotulo="Metros">
                 <Monto monto={renglon.metros} marca="Sin metros" />
               </td>

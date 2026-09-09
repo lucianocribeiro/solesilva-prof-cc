@@ -2,8 +2,9 @@
  * Exportación de la cuenta corriente a Excel.
  *
  * El archivo se arma en el navegador con los datos que la pantalla ya tiene:
- * no se vuelve a leer Airtable. Si el archivo no coincidiera con lo que se ve,
- * la exportación no serviría.
+ * no se vuelve a leer Airtable. La regla es una sola y no tiene excepciones:
+ * el Excel exporta exactamente lo que se ve en pantalla. Si el archivo no
+ * coincidiera con lo que se ve, la exportación no serviría.
  *
  * Sigue valiendo que la app es un espejo: los montos van como números, las
  * fechas como fechas, y un campo ausente queda como celda vacía. Un monto que
@@ -70,25 +71,20 @@ const ENCABEZADOS_SUBTOTALES = [
   'Subtotal',
 ];
 
-/** Una fila por combinación de cliente y moneda. */
+/** Una fila por sección: cada cliente aporta una fila por cada moneda suya. */
 function filasDeSubtotales(bloques: BloqueCliente[]): Celda[][] {
   const filas: Celda[][] = [ENCABEZADOS_SUBTOTALES];
 
   for (const bloque of bloques) {
-    for (const subtotal of bloque.subtotales) {
-      // El saldo inicial solo va en la fila de su moneda: en las demás queda
-      // vacío, porque para esa moneda no hay saldo inicial cargado.
-      const linea = bloque.saldosIniciales.find(
-        (saldo) => saldo.moneda === subtotal.moneda,
-      );
-
+    for (const seccion of bloque.secciones) {
       filas.push([
         etiquetaCliente(bloque.cliente),
-        etiquetaMoneda(subtotal.moneda),
-        linea ? linea.monto : null,
-        subtotal.ventas,
-        subtotal.cobranzas,
-        subtotal.total,
+        etiquetaMoneda(seccion.moneda),
+        // Sin saldo inicial cargado la celda queda vacía: no es un cero.
+        seccion.saldoInicial,
+        seccion.subtotal.ventas,
+        seccion.subtotal.cobranzas,
+        seccion.subtotal.total,
       ]);
     }
   }
@@ -98,31 +94,48 @@ function filasDeSubtotales(bloques: BloqueCliente[]): Celda[][] {
 
 const ENCABEZADOS_MOVIMIENTOS = [
   'Cliente',
+  'Moneda',
   'Fecha',
   'Tipo',
   'Comprobante',
   'Monto',
-  'Moneda',
+  'Código de artículo',
+  'Descripción del artículo',
+  'Precio unitario',
+  'Metros',
 ];
 
 /**
- * Una fila por movimiento, ordenada por cliente y después por fecha: los
- * bloques ya vienen alfabéticos y los movimientos de cada uno por fecha.
+ * Una fila por movimiento, ordenada por cliente, después por moneda y después
+ * por fecha: los bloques ya vienen alfabéticos, las secciones de cada bloque
+ * ordenadas por moneda y los movimientos de cada sección por fecha ascendente.
+ *
+ * Las cuatro últimas columnas son de la venta. Una cobranza no tiene artículo,
+ * ni precio unitario, ni metros, así que esas celdas quedan vacías: no es un
+ * cero y no se rellenan con nada.
  */
 function filasDeMovimientos(bloques: BloqueCliente[]): Celda[][] {
   const filas: Celda[][] = [ENCABEZADOS_MOVIMIENTOS];
 
   for (const bloque of bloques) {
-    for (const movimiento of bloque.movimientos) {
-      filas.push([
-        etiquetaCliente(bloque.cliente),
-        aFechaExcel(movimiento.fecha),
-        movimiento.tipo === 'venta' ? 'Venta' : 'Cobranza',
-        movimiento.comprobante,
-        // Las cobranzas van en negativo, igual que en pantalla.
-        movimiento.aporte,
-        etiquetaMoneda(movimiento.moneda),
-      ]);
+    for (const seccion of bloque.secciones) {
+      for (const movimiento of seccion.movimientos) {
+        const detalle = movimiento.detalle;
+
+        filas.push([
+          etiquetaCliente(bloque.cliente),
+          etiquetaMoneda(seccion.moneda),
+          aFechaExcel(movimiento.fecha),
+          movimiento.tipo === 'venta' ? 'Venta' : 'Cobranza',
+          movimiento.comprobante,
+          // Las cobranzas van en negativo, igual que en pantalla.
+          movimiento.aporte,
+          detalle?.codigo ?? null,
+          detalle?.descripcion ?? null,
+          detalle?.precioUnitario ?? null,
+          detalle?.metros ?? null,
+        ]);
+      }
     }
   }
 
@@ -151,9 +164,10 @@ export async function exportarCuentaCorriente(
     {
       nombre: 'Movimientos',
       filas: filasDeMovimientos(bloques),
-      anchos: [34, 13, 12, 16, 18, 14],
-      montos: [4],
-      fechas: [1],
+      anchos: [34, 14, 13, 12, 16, 18, 20, 40, 16, 12],
+      // Monto, precio unitario y metros.
+      montos: [5, 8, 9],
+      fechas: [2],
     },
   ];
 

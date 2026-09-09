@@ -79,15 +79,20 @@ const ANCHO = DERECHA - IZQUIERDA;
 const LIMITE_INFERIOR = ALTO_HOJA - MARGEN;
 
 /** Las mismas proporciones que el colgroup de la tabla en pantalla. */
-const FRACCIONES_COLUMNA = [0.42, 0.14, 0.22, 0.22];
+const FRACCIONES_COLUMNA = [0.24, 0.24, 0.14, 0.19, 0.19];
 
-/** Bordes de las cuatro columnas: cinco valores, del izquierdo al derecho. */
+/** Bordes de las cinco columnas: seis valores, del izquierdo al derecho. */
 const COLUMNAS = FRACCIONES_COLUMNA.reduce<number[]>(
   (bordes, fraccion) => [...bordes, bordes[bordes.length - 1] + fraccion * ANCHO],
   [IZQUIERDA],
 );
 
-const ANCHO_CODIGO = COLUMNAS[1] - COLUMNAS[0];
+/** El mismo aire entre columnas que el `pl-6` de la tabla en pantalla. */
+const SEPARACION = aMm(24);
+
+/** Ancho útil de las dos columnas de texto: el resto lo ocupa la separación. */
+const ANCHO_CODIGO = COLUMNAS[1] - COLUMNAS[0] - SEPARACION;
+const ANCHO_DESCRIPCION = COLUMNAS[2] - COLUMNAS[1] - SEPARACION;
 
 /** Ancho del bloque de totales: el w-80 de la pantalla. */
 const ANCHO_TOTALES = aMm(320);
@@ -369,12 +374,13 @@ function dibujar(doc: JsPDF, datos: DatosPdf): void {
 
   const dibujarCabecera = (): void => {
     escribir(doc, 'CÓDIGO', ROTULO, COLUMNAS[0], y + baseDeLinea(ROTULO));
+    escribir(doc, 'DESCRIPCIÓN', ROTULO, COLUMNAS[1], y + baseDeLinea(ROTULO));
     cabecerasNumericas.forEach((cabecera, indice) => {
       escribir(
         doc,
         cabecera,
         ROTULO,
-        COLUMNAS[indice + 2],
+        COLUMNAS[indice + 3],
         y + baseDeLinea(ROTULO),
         'derecha',
       );
@@ -397,14 +403,24 @@ function dibujar(doc: JsPDF, datos: DatosPdf): void {
       ? partir(doc, renglon.observaciones, ANCHO_CODIGO, OBSERVACION_RENGLON)
       : [];
 
+    // La descripción va vacía mientras el dato no esté cargado en la base: es
+    // una proforma que ve el cliente y acá no se inventa ningún texto.
+    const lineasDescripcion = renglon.descripcion
+      ? partir(doc, renglon.descripcion, ANCHO_DESCRIPCION, CELDA)
+      : [];
+
     const altoTextoCodigo =
       lineasCodigo.length * altoLinea(estiloCodigo) +
       (lineasObservacion.length > 0
         ? aMm(6) + lineasObservacion.length * altoLinea(OBSERVACION_RENGLON)
         : 0);
 
+    const altoTextoDescripcion = lineasDescripcion.length * altoLinea(CELDA);
+
     const altoFila =
-      aMm(12) + Math.max(altoTextoCodigo, altoLinea(CELDA)) + aMm(12);
+      aMm(12) +
+      Math.max(altoTextoCodigo, altoTextoDescripcion, altoLinea(CELDA)) +
+      aMm(12);
 
     // Una fila no se parte entre dos hojas: si no entra entera, pasa a la
     // siguiente y la cabecera de la tabla se repite arriba.
@@ -434,6 +450,12 @@ function dibujar(doc: JsPDF, datos: DatosPdf): void {
       }
     }
 
+    let yDescripcion = y + aMm(12);
+    for (const linea of lineasDescripcion) {
+      escribir(doc, linea, CELDA, COLUMNAS[1], yDescripcion + baseDeLinea(CELDA));
+      yDescripcion += altoLinea(CELDA);
+    }
+
     const baseNumeros = y + aMm(12) + baseDeLinea(CELDA);
     const columnasNumericas: Trozo[][] = [
       renglon.metros === null
@@ -444,7 +466,7 @@ function dibujar(doc: JsPDF, datos: DatosPdf): void {
     ];
 
     columnasNumericas.forEach((trozos, indice) => {
-      escribirCorrida(doc, trozos, COLUMNAS[indice + 2], baseNumeros, 'derecha');
+      escribirCorrida(doc, trozos, COLUMNAS[indice + 3], baseNumeros, 'derecha');
     });
 
     y += altoFila;

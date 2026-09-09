@@ -7,11 +7,15 @@
  * - No hay ninguna lista de monedas: la moneda es el valor que trae el campo y
  *   se agrupa por los valores que efectivamente aparecen en los datos.
  * - La ausencia de moneda es un grupo más, representado por `null`.
+ *
+ * Cada moneda es su propia cuenta corriente dentro del bloque del cliente: su
+ * saldo inicial, sus movimientos y su subtotal. Un movimiento vive en una sola
+ * sección, la de su moneda, y no se mezcla con las demás.
  */
 
-import type { Movimiento, SaldoInicial } from '@/lib/datos';
+import type { DetalleVenta, Movimiento, SaldoInicial } from '@/lib/datos';
 import { compararFechas } from '@/lib/fecha';
-import { compararMonedas, normalizarMoneda, redondear } from '@/lib/moneda';
+import { claveMoneda, compararMonedas, normalizarMoneda, redondear } from '@/lib/moneda';
 
 export type TipoMovimiento = 'venta' | 'cobranza';
 
@@ -28,23 +32,33 @@ export type MovimientoCliente = {
    * `null` cuando no hay monto: una ausencia no aporta nada, y tampoco es cero.
    */
   aporte: number | null;
-  moneda: string | null;
+  /** Artículo, precio unitario y metros. Solo lo traen las ventas. */
+  detalle?: DetalleVenta;
   /** La cobranza está vinculada a más de un cliente en la base. */
   compartidoConOtrosClientes?: boolean;
 };
 
-export type LineaSaldoInicial = {
-  moneda: string | null;
-  monto: number;
-};
-
 export type Subtotal = {
-  moneda: string | null;
   saldoInicial: number;
   ventas: number;
   cobranzas: number;
   /** saldo inicial + ventas − cobranzas, siempre dentro de la misma moneda. */
   total: number;
+};
+
+/** La cuenta corriente de un cliente en una moneda. */
+export type SeccionMoneda = {
+  moneda: string | null;
+  /** Clave estable para las keys de React. */
+  clave: string;
+  /**
+   * Saldo inicial de esta moneda. `null` cuando no hay ninguno cargado: un
+   * saldo inicial de cero está cargado y se muestra igual.
+   */
+  saldoInicial: number | null;
+  /** Ordenados por fecha ascendente, con los que no tienen fecha al final. */
+  movimientos: MovimientoCliente[];
+  subtotal: Subtotal;
 };
 
 export type BloqueCliente = {
@@ -53,13 +67,23 @@ export type BloqueCliente = {
    * registros que existen en la base y que no cuelgan de ningún cliente.
    */
   cliente: string | null;
-  saldosIniciales: LineaSaldoInicial[];
-  movimientos: MovimientoCliente[];
-  subtotales: Subtotal[];
+  /**
+   * Una sección por moneda, alfabéticas y con la de "sin moneda" al final.
+   * Vacío cuando el cliente no tiene ni saldo inicial ni movimientos.
+   */
+  secciones: SeccionMoneda[];
 };
 
 /** Acumulador por moneda mientras se recorre un cliente. */
-type Acumulado = Subtotal & { tieneSaldoInicial: boolean };
+type Acumulado = {
+  moneda: string | null;
+  saldoInicial: number;
+  /** Se marca aparte del monto: un saldo inicial cargado en cero igual se muestra. */
+  tieneSaldoInicial: boolean;
+  ventas: number;
+  cobranzas: number;
+  movimientos: MovimientoCliente[];
+};
 
 function armarBloque(
   cliente: string | null,
@@ -77,10 +101,10 @@ function armarBloque(
     const nuevo: Acumulado = {
       moneda: clave,
       saldoInicial: 0,
+      tieneSaldoInicial: false,
       ventas: 0,
       cobranzas: 0,
-      total: 0,
-      tieneSaldoInicial: false,
+      movimientos: [],
     };
     porMoneda.set(clave, nuevo);
     return nuevo;
@@ -89,25 +113,22 @@ function armarBloque(
   for (const saldo of saldos) {
     const fila = acumulado(saldo.moneda);
     fila.saldoInicial += saldo.monto;
-    // Se marca aparte del monto: un saldo inicial cargado en cero igual se muestra.
     fila.tieneSaldoInicial = true;
   }
-
-  const movimientos: MovimientoCliente[] = [];
 
   ventas.forEach((venta, indice) => {
     // Sin monto cargado no hay nada que sumar. El movimiento se muestra igual.
     const fila = acumulado(venta.moneda);
     if (venta.monto !== null) fila.ventas += venta.monto;
 
-    movimientos.push({
+    fila.movimientos.push({
       id: `venta-${indice}`,
       fecha: venta.fecha,
       tipo: 'venta',
       comprobante: venta.comprobante,
       monto: venta.monto,
       aporte: venta.monto,
-      moneda: normalizarMoneda(venta.moneda),
+      ...(venta.detalle ? { detalle: venta.detalle } : {}),
     });
   });
 
@@ -115,40 +136,37 @@ function armarBloque(
     const fila = acumulado(cobranza.moneda);
     if (cobranza.monto !== null) fila.cobranzas += cobranza.monto;
 
-    movimientos.push({
+    fila.movimientos.push({
       id: `cobranza-${indice}`,
       fecha: cobranza.fecha,
       tipo: 'cobranza',
       comprobante: cobranza.comprobante,
       monto: cobranza.monto,
       aporte: cobranza.monto === null ? null : -cobranza.monto,
-      moneda: normalizarMoneda(cobranza.moneda),
       ...(cobranza.compartidoConOtrosClientes
         ? { compartidoConOtrosClientes: true }
         : {}),
     });
   });
 
-  movimientos.sort((a, b) => compararFechas(a.fecha, b.fecha));
-
-  const acumulados = [...porMoneda.values()].sort((a, b) =>
-    compararMonedas(a.moneda, b.moneda),
-  );
-
-  return {
-    cliente,
-    saldosIniciales: acumulados
-      .filter((fila) => fila.tieneSaldoInicial)
-      .map((fila) => ({ moneda: fila.moneda, monto: redondear(fila.saldoInicial) })),
-    movimientos,
-    subtotales: acumulados.map((fila) => ({
+  const secciones = [...porMoneda.values()]
+    .sort((a, b) => compararMonedas(a.moneda, b.moneda))
+    .map((fila) => ({
       moneda: fila.moneda,
-      saldoInicial: redondear(fila.saldoInicial),
-      ventas: redondear(fila.ventas),
-      cobranzas: redondear(fila.cobranzas),
-      total: redondear(fila.saldoInicial + fila.ventas - fila.cobranzas),
-    })),
-  };
+      clave: claveMoneda(fila.moneda),
+      saldoInicial: fila.tieneSaldoInicial ? redondear(fila.saldoInicial) : null,
+      movimientos: [...fila.movimientos].sort((a, b) =>
+        compararFechas(a.fecha, b.fecha),
+      ),
+      subtotal: {
+        saldoInicial: redondear(fila.saldoInicial),
+        ventas: redondear(fila.ventas),
+        cobranzas: redondear(fila.cobranzas),
+        total: redondear(fila.saldoInicial + fila.ventas - fila.cobranzas),
+      },
+    }));
+
+  return { cliente, secciones };
 }
 
 /**

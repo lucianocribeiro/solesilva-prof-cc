@@ -109,18 +109,49 @@ El saldo inicial de la tabla Clientes es un número sin campo de moneda al lado,
 así que se lee como dólares. Esa suposición vive en la constante
 `MONEDA_SALDO_INICIAL` de `src/lib/datos.ts`, en un solo lugar.
 
+La descripción del artículo sale del campo `Descripción` de la tabla Artículos,
+resolviendo el vínculo de cada venta. Hoy está cargada en muy pocos artículos,
+así que la columna sale en blanco casi siempre: eso es lo esperado y no se
+rellena con el código ni con ningún otro texto.
+
+El precio unitario sale de `Precio unitario (fijado)` de la tabla Ventas, que es
+el precio congelado al registrar la venta. No se usan los precios de lista de la
+tabla Artículos: esos son referencia y cambian cuando se actualiza una lista, así
+que una proforma vieja mostraría un precio que nunca se cobró.
+
+## Cuenta corriente
+
+Dentro del bloque de cada cliente, **cada moneda es su propia cuenta
+corriente**: su encabezado, su saldo inicial, sus movimientos y su subtotal. Un
+movimiento aparece en una sola sección, la de su moneda, y nada se mezcla ni se
+convierte. Las secciones van alfabéticas por código de moneda, con la de
+movimientos sin moneda al final, y adentro de cada una los movimientos van por
+fecha ascendente, con los que no tienen fecha al final.
+
+El buscador filtra el padrón entero, no solo lo visible: con el buscador vacío
+se muestran únicamente los clientes con saldo inicial o movimientos, porque la
+base tiene cientos sin ninguno. El bloque de movimientos sin cliente asignado
+aparece cuando el buscador está vacío y desaparece cuando tiene texto: buscar es
+filtrar, y esos movimientos no son parte del resultado de una búsqueda.
+
 ## Exportación a Excel
 
 El botón **Exportar a Excel** de la cuenta corriente genera el archivo en el
-navegador, con los datos que la pantalla ya tiene: no se vuelve a leer Airtable,
-así el archivo siempre coincide con lo que se ve. Se exporta lo visible —lo
-filtrado si el buscador tiene texto— más el bloque de movimientos sin cliente
-asignado, que va siempre.
+navegador, con los datos que la pantalla ya tiene: no se vuelve a leer Airtable.
+La regla es una sola y no tiene excepciones: **el Excel exporta exactamente lo
+que se ve en pantalla**. Si el buscador tiene texto, sale lo filtrado y nada
+más; si está vacío, sale todo lo visible incluido el bloque de movimientos sin
+cliente asignado.
 
 El archivo tiene dos hojas, *Subtotales* (una fila por cliente y moneda) y
-*Movimientos* (una fila por movimiento). Los montos van como números y las
-fechas como fechas de Excel, para poder sumar, ordenar y filtrar. Un campo sin
-cargar queda como celda vacía, no como cero.
+*Movimientos* (una fila por movimiento, ordenada por cliente, después por moneda
+y después por fecha ascendente). Los montos van como números y las fechas como
+fechas de Excel, para poder sumar, ordenar y filtrar. Un campo sin cargar queda
+como celda vacía, no como cero.
+
+La hoja de movimientos trae además el código del artículo, su descripción, el
+precio unitario y los metros. Son datos de la venta: en las filas de cobranza
+esas cuatro celdas quedan vacías, porque una cobranza no tiene ninguno.
 
 Las fechas se escriben como número de serie de Excel y no como `Date`: un `Date`
 se serializa como instante UTC y en cualquier zona detrás de Greenwich la celda
@@ -160,14 +191,15 @@ menú de compartir no muestra ningún error.
 
 ## Pantallas angostas
 
-El documento está maquetado para hoja A4 y en un teléfono la tabla de cuatro
+El documento está maquetado para hoja A4 y en un teléfono la tabla de cinco
 columnas no entra. En vez de dejarla scrollear de costado —que obliga a
 arrastrar para leer un total— por debajo de 640 px cada renglón se reacomoda
-como una ficha, con el código arriba y los montos rotulados debajo.
+como una ficha, con el código y la descripción arriba y los montos rotulados
+debajo.
 
 Todo eso vive en un bloque `@media screen and (max-width: 640px)` de
 `globals.css`: no lo ve la impresora. En papel el documento sigue siendo la
-misma hoja A4 con su tabla de cuatro columnas.
+misma hoja A4 con su tabla de cinco columnas.
 
 ## Estructura
 
