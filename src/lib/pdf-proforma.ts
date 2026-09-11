@@ -164,9 +164,9 @@ type Estilo = {
 };
 
 const TITULO: Estilo = {
-  cuerpo: aPt(30),
+  cuerpo: aPt(12),
   peso: 'bold',
-  espaciado: aMm(30 * 0.22),
+  espaciado: aMm(12 * 0.22),
   interlineado: 1,
 };
 

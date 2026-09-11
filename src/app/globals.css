@@ -196,7 +196,7 @@ body {
   }
 
   .doc-titulo {
-    @apply text-3xl font-semibold uppercase leading-none tracking-[0.22em];
+    @apply text-xs font-semibold uppercase leading-none tracking-[0.22em];
   }
 
   /* Datos fijos de la empresa que emite, uno por renglón. */
@@ -367,15 +367,11 @@ body {
     padding-bottom: 1.25rem;
   }
 
-  /* El logo acompaña al título, que acá también se achica. */
+  /* Un logo de 40 px se come demasiado ancho en un teléfono. El título no
+     necesita ajuste: con 12 px entra en cualquier pantalla. */
   .doc-logo {
     height: 2rem;
     margin-bottom: 1rem;
-  }
-
-  .doc-titulo {
-    font-size: 1.5rem;
-    letter-spacing: 0.16em;
   }
 
   /* Los datos de la derecha pasan abajo, alineados a la izquierda y en dos
