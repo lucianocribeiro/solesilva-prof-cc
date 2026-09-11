@@ -149,9 +149,13 @@ y después por fecha ascendente). Los montos van como números y las fechas como
 fechas de Excel, para poder sumar, ordenar y filtrar. Un campo sin cargar queda
 como celda vacía, no como cero.
 
-La hoja de movimientos trae además el código del artículo, su descripción, el
-precio unitario y los metros. Son datos de la venta: en las filas de cobranza
-esas cuatro celdas quedan vacías, porque una cobranza no tiene ninguno.
+Las columnas de la hoja de movimientos van en este orden, que lo pidió el
+cliente: Cliente, Fecha, Tipo, Comprobante, Código de artículo, Metros,
+Descripción del artículo, Precio unitario, Moneda, Monto.
+
+El código, los metros, la descripción y el precio unitario son datos de la
+venta: en las filas de cobranza esas cuatro celdas quedan vacías, porque una
+cobranza no tiene ninguno.
 
 Las fechas se escriben como número de serie de Excel y no como `Date`: un `Date`
 se serializa como instante UTC y en cualquier zona detrás de Greenwich la celda
@@ -163,18 +167,50 @@ al exportar. SheetJS Community Edition no escribe estilos de celda, así que los
 encabezados van sin negrita y sin panel fijo: es cosmético y no cambia los
 datos.
 
+## Empresas emisoras
+
+La proforma puede emitirse desde cualquiera de dos empresas: la argentina
+(María Soledad Silva, con CUIT) o la estadounidense (SOLE SILVA TEXTILES LLC,
+con EIN). El selector **Empresa emisora** está junto a los de cliente y fecha,
+arranca vacío y **sin empresa elegida no se arma ningún documento**: es lo que
+evita emitir con la empresa equivocada por descuido.
+
+Los datos son fijos de la app y no vienen de Airtable: viven en
+`src/lib/empresas.ts`, que es el único lugar donde hay que tocar para cambiar
+una razón social, una identificación o un domicilio. Cada empresa lleva el
+rótulo fiscal de su país —CUIT la argentina, EIN la estadounidense—; no hay un
+rótulo genérico que sirva para las dos.
+
+La empresa elegida **no afecta el corte por moneda**: si entre los renglones
+tildados hay más de una moneda sigue saliendo un documento por cada una, y
+todos llevan la misma empresa. El nombre del archivo PDF la incluye, así dos
+proformas con el mismo número pero de empresas distintas no se confunden.
+
+El encabezado del documento muestra, a la izquierda, el logo de
+`public/solesilva.png`, el título y los datos de la empresa; a la derecha, el
+número, la fecha de emisión y la moneda. Del logo se fija solo el alto, tanto
+en pantalla como en el PDF: el ancho sale de la proporción del archivo, así que
+cambiarlo por otro no lo deforma.
+
 ## PDF de la proforma
 
 Junto al botón de imprimir hay uno que genera el PDF del documento visible: uno
 solo, el de la moneda que está abierta, igual que la impresión. El archivo se
-llama `proforma-<número>-<cliente>.pdf` e incluye lo que el usuario escribió en
-observaciones y condiciones.
+llama `proforma-<empresa>-<número>-<cliente>.pdf` e incluye lo que el usuario
+escribió en observaciones y condiciones.
 
 El PDF se **dibuja** en el navegador con jsPDF, no se captura de la pantalla. El
 texto es texto de verdad —seleccionable, buscable y copiable— y una proforma
 pesa alrededor de diez kB. Se usa Helvetica, una de las catorce fuentes
 estándar del formato, así que no hay que embeber ninguna tipografía; su
-codificación cubre todo el español. Se descartó generar el PDF en el servidor
+codificación cubre todo el español.
+
+Lo único embebido es el logo, que suma unos 3,8 kB: la misma proforma pasó de
+4,8 a 8,6 kB al agregarlo. Se embebe con la compresión más fuerte de jsPDF, que
+para este archivo es la que menos pesa —sin comprimir serían 28 kB—, y se lee
+del mismo `/solesilva.png` que muestra la pantalla, en vez de llevar una copia
+adentro del bundle. Se precarga junto con la librería al apuntar el botón,
+porque compartir tiene que ocurrir dentro del gesto del usuario. Se descartó generar el PDF en el servidor
 con un Chromium sin cabeza: son unos cincuenta MB en la función de Vercel y un
 arranque en frío de segundos para maquetar una tabla, un bloque de totales y dos
 párrafos. La librería se carga a pedido, igual que la de Excel.
@@ -221,6 +257,7 @@ src/
     compartir.ts              menú de compartir del sistema, con descarga de respaldo
     datos.ts                  cuenta corriente: clientes, saldos y movimientos
     renglones-venta.ts        renglones de venta para proformas
+    empresas.ts               datos fijos de las dos empresas emisoras
     auth-actions.ts           Server Actions de ingresar y salir
     env.ts                    lectura y validación de variables de entorno
     session.ts                firma y validación de la cookie de sesión

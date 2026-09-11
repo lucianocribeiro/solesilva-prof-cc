@@ -7,6 +7,7 @@ import { Fecha } from '@/components/fecha';
 import { Moneda } from '@/components/moneda';
 import { Monto } from '@/components/monto';
 import { compartirArchivo, sePuedeCompartirArchivos } from '@/lib/compartir';
+import { EMPRESAS, empresaPorClave } from '@/lib/empresas';
 import { fechaDeHoy } from '@/lib/fecha';
 import { formatearFecha } from '@/lib/formato';
 import { generarPdfProforma, precargarPdf } from '@/lib/pdf-proforma';
@@ -43,6 +44,9 @@ function filtroDesdeSelect(valor: string): FiltroFecha {
 }
 
 export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) {
+  // Arranca sin empresa a propósito: emitir con la equivocada por no haber
+  // mirado el selector es peor que tener que elegirla cada vez.
+  const [claveEmpresa, setClaveEmpresa] = useState('');
   const [cliente, setCliente] = useState('');
   const [fechaElegida, setFechaElegida] = useState('');
   const [tildados, setTildados] = useState<string[]>([]);
@@ -61,6 +65,8 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
   const [puedeCompartir, setPuedeCompartir] = useState(false);
   useEffect(() => setPuedeCompartir(sePuedeCompartirArchivos()), []);
 
+  const empresa = empresaPorClave(claveEmpresa);
+
   const clientes = clientesConVentas(renglones);
   const fechas = cliente ? fechasDeCliente(renglones, cliente) : [];
 
@@ -72,17 +78,20 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
   const seleccionados = disponibles.filter((renglon) =>
     tildados.includes(renglon.id),
   );
-  const documentos = armarDocumentos(seleccionados);
+
+  // Sin empresa no se arma ningún documento. La empresa no toca el corte por
+  // moneda: si salen varios documentos, todos llevan la misma.
+  const documentos = empresa ? armarDocumentos(seleccionados) : [];
   const activo = Math.min(indiceActivo, Math.max(documentos.length - 1, 0));
   const documento = documentos[activo];
 
   /**
    * El aviso habla del archivo que se acaba de generar. Si cambia lo que está
-   * en pantalla —otra moneda, otros renglones tildados— deja de corresponder,
-   * así que se borra.
+   * en pantalla —otra empresa, otra moneda, otros renglones tildados— deja de
+   * corresponder, así que se borra.
    */
   const firmaDelDocumento = documento
-    ? `${documento.clave}|${documento.renglones.map((r) => r.id).join(',')}`
+    ? `${claveEmpresa}|${documento.clave}|${documento.renglones.map((r) => r.id).join(',')}`
     : '';
 
   useEffect(() => {
@@ -134,7 +143,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
    * hay que adjuntarlo a mano.
    */
   async function compartir() {
-    if (!documento) return;
+    if (!documento || !empresa) return;
 
     setGenerando(true);
     setAviso(null);
@@ -147,6 +156,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
         cliente,
         campos: datos,
         fecha: fechaDeHoy(),
+        empresa,
       });
 
       const resultado = await compartirArchivo(
@@ -172,12 +182,32 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
       <section className="no-imprimir">
         <h1 className="titulo-pagina">Proformas</h1>
         <p className="mt-1 text-sm texto-suave">
-          Elegí un cliente y tildá los renglones que van en la proforma. La
-          fecha es un filtro opcional: sin elegir ninguna se ven todos sus
-          renglones. Si hay más de una moneda sale un documento por cada una.
+          Elegí la empresa que emite y un cliente, y tildá los renglones que van
+          en la proforma. La fecha es un filtro opcional: sin elegir ninguna se
+          ven todos sus renglones. Si hay más de una moneda sale un documento
+          por cada una, todos de la misma empresa.
         </p>
 
         <div className="panel mt-6 flex flex-wrap gap-4 p-4 sm:gap-6">
+          <div className="w-full sm:w-56">
+            <label className="etiqueta" htmlFor="empresa">
+              Empresa emisora
+            </label>
+            <select
+              id="empresa"
+              className="campo"
+              value={claveEmpresa}
+              onChange={(evento) => setClaveEmpresa(evento.target.value)}
+            >
+              <option value="">Elegí una empresa</option>
+              {EMPRESAS.map((opcion) => (
+                <option key={opcion.clave} value={opcion.clave}>
+                  {opcion.etiqueta}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="w-full sm:w-72">
             <label className="etiqueta" htmlFor="cliente">
               Cliente
@@ -302,9 +332,17 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
             )}
           </div>
         ) : null}
+
+        {/* Hay renglones tildados pero falta la empresa: se dice qué falta en
+            vez de dejar la pantalla sin documento y sin explicación. */}
+        {seleccionados.length > 0 && !empresa ? (
+          <p className="panel mt-8 px-4 py-3 text-sm" role="status">
+            Elegí la empresa emisora para armar la proforma.
+          </p>
+        ) : null}
       </section>
 
-      {documento ? (
+      {documento && empresa ? (
         <section className="mt-8">
           <div className="no-imprimir mb-4 flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -388,6 +426,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
               key={documento.clave}
               documento={documento}
               cliente={cliente}
+              empresa={empresa}
               campos={camposDelDocumento(
                 documento.clave,
                 documento.numeroSugerido,

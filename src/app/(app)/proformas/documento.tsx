@@ -1,10 +1,12 @@
 'use client';
 
+import Image from 'next/image';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { Ausente } from '@/components/ausente';
 import { Moneda } from '@/components/moneda';
 import { Monto } from '@/components/monto';
+import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
 import { fechaDeHoy } from '@/lib/fecha';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
 import type { CamposDocumento, DocumentoProforma } from '@/lib/proformas';
@@ -58,22 +60,41 @@ function AreaEditable({
 export function Documento({
   documento,
   cliente,
+  empresa,
   campos,
   onCambiar,
 }: {
   documento: DocumentoProforma;
   cliente: string;
+  empresa: Empresa;
   campos: CamposDocumento;
   onCambiar: (campo: keyof CamposDocumento, valor: string) => void;
 }) {
+  const [nombreEmisor, ...datosEmisor] = renglonesEmisor(empresa);
+
   return (
     <article className="hoja">
       <header className="doc-encabezado">
         <div>
+          {/* Se sirve el archivo tal cual, sin el optimizador: pesa 5 kB y
+              así la pantalla, la impresión y el PDF muestran el mismo. Carga
+              de entrada para que esté listo si se imprime enseguida. */}
+          <Image
+            src={LOGO}
+            alt="Sole Silva"
+            width={178}
+            height={53}
+            className="doc-logo"
+            unoptimized
+            priority
+          />
           <h2 className="doc-titulo">Proforma</h2>
-          <span className="doc-aclaracion">
-            No es una factura ni un comprobante fiscal
-          </span>
+          <address className="doc-emisor">
+            <span className="doc-emisor-nombre">{nombreEmisor}</span>
+            {datosEmisor.map((dato) => (
+              <span key={dato}>{dato}</span>
+            ))}
+          </address>
         </div>
 
         <dl className="doc-meta">

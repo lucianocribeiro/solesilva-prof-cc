@@ -9,14 +9,16 @@
  * mandar los datos de la proforma a algún lado. Acá no sale nada del navegador.
  *
  * Se usa Helvetica, una de las catorce fuentes estándar del formato: no hay que
- * embeber ninguna tipografía y el archivo queda en el orden de los diez kB. Su
- * codificación WinAnsi cubre todo el español, acentos y eñes incluidos.
+ * embeber ninguna tipografía. Su codificación WinAnsi cubre todo el español,
+ * acentos y eñes incluidos. Lo único embebido es el logo, que suma unos 4 kB, y
+ * el archivo queda en el orden de los diez kB.
  *
  * El documento es un espejo del que se ve en pantalla: mismos textos, mismas
  * marcas de campo ausente, mismos formatos de monto y de fecha. Acá no se
  * calcula nada nuevo ni se completa nada que falte.
  */
 
+import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
 import type { CamposDocumento, DocumentoProforma } from '@/lib/proformas';
 
@@ -34,7 +36,30 @@ function cargarJsPDF(): Promise<typeof import('jspdf')> {
 }
 
 /**
- * Adelanta la carga de la librería.
+ * El logo se lee del mismo archivo público que muestra la pantalla, así hay
+ * uno solo. La promesa se guarda para no pedirlo en cada PDF; si la lectura
+ * falla se descarta, y el próximo intento lo vuelve a pedir.
+ */
+let logo: Promise<Uint8Array> | null = null;
+
+function cargarLogo(): Promise<Uint8Array> {
+  logo ??= fetch(LOGO)
+    .then((respuesta) => {
+      if (!respuesta.ok) {
+        throw new Error(`No se pudo leer el logo (${respuesta.status}).`);
+      }
+      return respuesta.arrayBuffer();
+    })
+    .then((bytes) => new Uint8Array(bytes))
+    .catch((error: unknown) => {
+      logo = null;
+      throw error;
+    });
+  return logo;
+}
+
+/**
+ * Adelanta la carga de la librería y del logo.
  *
  * Compartir tiene que ocurrir dentro del gesto del usuario: si al apretar el
  * botón hubiera que bajar la librería, algunos navegadores considerarían que el
@@ -43,6 +68,8 @@ function cargarJsPDF(): Promise<typeof import('jspdf')> {
  */
 export function precargarPdf(): void {
   void cargarJsPDF();
+  // Si falla acá no se avisa: el error se muestra al generar, que lo reintenta.
+  cargarLogo().catch(() => {});
 }
 
 /* --- Unidades -----------------------------------------------------------
@@ -97,6 +124,18 @@ const ANCHO_DESCRIPCION = COLUMNAS[2] - COLUMNAS[1] - SEPARACION;
 /** Ancho del bloque de totales: el w-80 de la pantalla. */
 const ANCHO_TOTALES = aMm(320);
 
+/**
+ * Lo que le queda al lado izquierdo del encabezado: el ancho de la hoja menos
+ * el w-56 de los datos de la derecha y el gap-12 que los separa.
+ */
+const ANCHO_EMISOR = ANCHO - aMm(224) - aMm(48);
+
+/**
+ * Alto del logo: el mismo h-10 de la pantalla. El ancho no se fija, sale de la
+ * proporción del archivo, así el logo nunca se estira ni se aplasta.
+ */
+const ALTO_LOGO = aMm(40);
+
 /* --- Tinta --------------------------------------------------------------- */
 
 const TINTA = '#1b1b19';
@@ -131,10 +170,16 @@ const TITULO: Estilo = {
   interlineado: 1,
 };
 
-const ACLARACION: Estilo = {
-  cuerpo: aPt(11),
+const EMISOR_NOMBRE: Estilo = {
+  cuerpo: aPt(13),
+  peso: 'bold',
+  interlineado: 1.625,
+};
+
+const EMISOR: Estilo = {
+  cuerpo: aPt(12),
   color: TINTA_SUAVE,
-  espaciado: aMm(11 * 0.025),
+  interlineado: 1.625,
 };
 
 const ROTULO: Estilo = {
@@ -299,10 +344,12 @@ export type DatosPdf = {
   campos: CamposDocumento;
   /** Fecha de emisión en ISO, la misma que muestra la pantalla. */
   fecha: string;
+  /** La empresa elegida en pantalla. Sin empresa no hay documento. */
+  empresa: Empresa;
 };
 
-function dibujar(doc: JsPDF, datos: DatosPdf): void {
-  const { documento, cliente, campos, fecha } = datos;
+function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
+  const { documento, cliente, campos, fecha, empresa } = datos;
 
   let y = MARGEN;
 
@@ -322,16 +369,31 @@ function dibujar(doc: JsPDF, datos: DatosPdf): void {
   /* --- Encabezado ------------------------------------------------------- */
 
   let yIzquierda = y;
-  escribir(doc, 'PROFORMA', TITULO, IZQUIERDA, yIzquierda + baseDeLinea(TITULO));
-  yIzquierda += altoLinea(TITULO) + aMm(12);
-  escribir(
-    doc,
-    'NO ES UNA FACTURA NI UN COMPROBANTE FISCAL',
-    ACLARACION,
+
+  const { width, height } = doc.getImageProperties(imagenLogo);
+  // Compresión máxima: con este logo es la opción que menos pesa.
+  doc.addImage(
+    imagenLogo,
+    'PNG',
     IZQUIERDA,
-    yIzquierda + baseDeLinea(ACLARACION),
+    yIzquierda,
+    ALTO_LOGO * (width / height),
+    ALTO_LOGO,
+    'logo',
+    'SLOW',
   );
-  yIzquierda += altoLinea(ACLARACION);
+  yIzquierda += ALTO_LOGO + aMm(20);
+
+  escribir(doc, 'PROFORMA', TITULO, IZQUIERDA, yIzquierda + baseDeLinea(TITULO));
+  yIzquierda += altoLinea(TITULO) + aMm(16);
+
+  renglonesEmisor(empresa).forEach((texto, indice) => {
+    const estilo = indice === 0 ? EMISOR_NOMBRE : EMISOR;
+    for (const linea of partir(doc, texto, ANCHO_EMISOR, estilo)) {
+      escribir(doc, linea, estilo, IZQUIERDA, yIzquierda + baseDeLinea(estilo));
+      yIzquierda += altoLinea(estilo);
+    }
+  });
 
   const meta: [string, Trozo[]][] = [
     ['N.º DE PROFORMA', [{ texto: campos.numero, estilo: META_VALOR }]],
@@ -592,9 +654,21 @@ function parteDeNombre(texto: string): string {
     .slice(0, 60);
 }
 
-/** El nombre identifica la proforma: número y cliente. */
-export function nombreDeArchivo(numero: string, cliente: string): string {
-  const partes = ['proforma', parteDeNombre(numero), parteDeNombre(cliente)];
+/**
+ * El nombre identifica la proforma: empresa, número y cliente. La empresa va
+ * primero para que dos proformas iguales de empresas distintas no se confundan.
+ */
+export function nombreDeArchivo(
+  empresa: Empresa,
+  numero: string,
+  cliente: string,
+): string {
+  const partes = [
+    'proforma',
+    parteDeNombre(empresa.clave),
+    parteDeNombre(numero),
+    parteDeNombre(cliente),
+  ];
   return `${partes.filter((parte) => parte !== '').join('-')}.pdf`;
 }
 
@@ -605,18 +679,22 @@ export function nombreDeArchivo(numero: string, cliente: string): string {
  * o para descargar. No lo guarda en ningún lado ni lo manda a ninguna parte.
  */
 export async function generarPdfProforma(datos: DatosPdf): Promise<File> {
-  const { jsPDF } = await cargarJsPDF();
+  const [{ jsPDF }, imagenLogo] = await Promise.all([
+    cargarJsPDF(),
+    cargarLogo(),
+  ]);
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
 
-  const nombre = nombreDeArchivo(datos.campos.numero, datos.cliente);
+  const nombre = nombreDeArchivo(datos.empresa, datos.campos.numero, datos.cliente);
 
   doc.setProperties({
     title: `Proforma ${datos.campos.numero} — ${datos.cliente}`.trim(),
     subject: datos.cliente,
+    author: datos.empresa.razonSocial,
   });
 
-  dibujar(doc, datos);
+  dibujar(doc, datos, imagenLogo);
 
   return new File([doc.output('blob')], nombre, { type: 'application/pdf' });
 }
