@@ -192,7 +192,11 @@ body {
   /* Se fija solo el alto: el ancho sale de la proporción del archivo, así el
      logo nunca se deforma. El PDF lo dibuja con este mismo alto. */
   .doc-logo {
-    @apply mb-5 block h-10 w-auto;
+    @apply relative mb-5 block h-10 w-auto;
+    /* Sube sin mover nada más: al desplazarse en vez de achicar el margen,
+       sigue ocupando el mismo lugar y el título, los datos de la empresa y la
+       columna de la derecha se quedan donde estaban. El PDF sube lo mismo. */
+    top: -15px;
   }
 
   .doc-titulo {

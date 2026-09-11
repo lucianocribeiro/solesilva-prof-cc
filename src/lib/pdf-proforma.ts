@@ -136,6 +136,13 @@ const ANCHO_EMISOR = ANCHO - aMm(224) - aMm(48);
  */
 const ALTO_LOGO = aMm(40);
 
+/**
+ * Cuánto sube el logo por encima del margen, el mismo desplazamiento que en
+ * pantalla. Sube solo el logo: el título, los datos de la empresa y la columna
+ * de la derecha se dibujan donde se dibujaban antes.
+ */
+const SUBIDA_LOGO = aMm(15);
+
 /* --- Tinta --------------------------------------------------------------- */
 
 const TINTA = '#1b1b19';
@@ -376,12 +383,13 @@ function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
     imagenLogo,
     'PNG',
     IZQUIERDA,
-    yIzquierda,
+    yIzquierda - SUBIDA_LOGO,
     ALTO_LOGO * (width / height),
     ALTO_LOGO,
     'logo',
     'SLOW',
   );
+  // El avance no descuenta la subida: lo que sigue queda donde estaba.
   yIzquierda += ALTO_LOGO + aMm(20);
 
   escribir(doc, 'PROFORMA', TITULO, IZQUIERDA, yIzquierda + baseDeLinea(TITULO));
