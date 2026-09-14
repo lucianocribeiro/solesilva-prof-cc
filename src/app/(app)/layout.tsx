@@ -1,3 +1,5 @@
+import Image from 'next/image';
+import { LOGO } from '@/lib/empresas';
 import { Navegacion } from './navegacion';
 import { BotonRecargar } from './boton-recargar';
 import { BotonSalir } from './boton-salir';
@@ -14,9 +16,20 @@ export default function AppLayout({
           className="contenedor flex min-h-12 flex-wrap items-center
             justify-between gap-x-6 gap-y-2 py-2"
         >
-          <span className="text-sm font-semibold tracking-tight">
-            Sole Silva — Administración
-          </span>
+          <div className="flex items-center gap-3">
+            <Image
+              src={LOGO}
+              alt="Sole Silva"
+              width={178}
+              height={53}
+              className="h-6 w-auto"
+              unoptimized
+              priority
+            />
+            <span className="text-sm font-semibold tracking-tight">
+              Sole Silva — Administración
+            </span>
+          </div>
 
           <div className="mr-auto flex flex-wrap items-center gap-1">
             <Navegacion />
