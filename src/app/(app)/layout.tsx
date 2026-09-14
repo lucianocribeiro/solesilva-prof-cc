@@ -11,22 +11,28 @@ export default function AppLayout({
   return (
     <div className="min-h-screen">
       <header className="no-imprimir border-b border-borde bg-superficie">
-        {/* Envuelve en pantallas angostas: en un teléfono no entra todo en una línea. */}
+        {/* Tres columnas con los enlaces al centro: las laterales miden lo
+            mismo, así quedan centrados aunque el logo y los botones no
+            ocupen igual. En un teléfono no entra todo en una línea y los
+            enlaces bajan a una segunda fila. */}
         <div
-          className="contenedor flex min-h-12 flex-wrap items-center
-            justify-between gap-x-6 gap-y-2 py-2"
+          className="contenedor grid min-h-12 grid-cols-2 items-center
+            gap-x-6 gap-y-2 py-2 sm:grid-cols-[1fr_auto_1fr]"
         >
           <Image
             src={LOGO}
             alt="Sole Silva"
             width={178}
             height={53}
-            className="h-[1.95rem] w-auto"
+            className="h-[1.95rem] w-auto justify-self-start"
             unoptimized
             priority
           />
 
-          <div className="mr-auto flex flex-wrap items-center gap-1">
+          <div
+            className="order-last col-span-2 flex flex-wrap items-center
+              justify-center gap-1 sm:order-none sm:col-span-1"
+          >
             <Navegacion />
 
             <span className="mx-1 h-4 w-px bg-borde" aria-hidden="true" />
@@ -34,7 +40,7 @@ export default function AppLayout({
             <EnlaceAirtable />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-self-end gap-2">
             <BotonRecargar />
             <BotonSalir />
           </div>
