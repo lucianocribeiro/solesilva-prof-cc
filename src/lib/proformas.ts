@@ -94,10 +94,95 @@ export function renglonesDe(
 }
 
 /**
- * Un documento por cada moneda presente entre los renglones tildados.
- * Los documentos se numeran P-00001, P-00002… según su orden.
+ * Palabras que no aportan nada a una sigla: conectores y formas jurídicas.
+ * Sin ellas, "Textiles del Sur S.R.L." queda en TS y no en TDSSRL.
  */
-export function armarDocumentos(tildados: RenglonVenta[]): DocumentoProforma[] {
+const PALABRAS_SIN_INICIAL = new Set([
+  'DE', 'DEL', 'LA', 'LAS', 'LOS', 'EL', 'Y', 'E',
+  'SA', 'SAS', 'SRL', 'SC', 'SCA', 'SAIC', 'LTDA', 'LTD', 'INC', 'CIA',
+]);
+
+/** Más de cuatro iniciales ya no es una sigla, es un trabalenguas. */
+const MAXIMO_INICIALES = 4;
+
+/** Letras que aporta un nombre de una sola palabra, donde no hay sigla posible. */
+const LETRAS_DE_PALABRA_UNICA = 3;
+
+/** Mayúsculas sin acentos y sin nada que no sea letra o número. */
+function soloAlfanumerico(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+/**
+ * Iniciales de la razón social del cliente. "Hilandería del Norte S.A." da HN.
+ *
+ * Las siglas escritas con puntos se juntan antes de separar en palabras, para
+ * que "S.R.L." cuente como una sola palabra —descartable— y no como tres
+ * iniciales sueltas. Si después de descartar no queda ninguna palabra, se usan
+ * las del nombre tal cual vino: un número raro es mejor que uno vacío.
+ *
+ * Un nombre de una sola palabra no da una sigla sino una letra, que no
+ * identifica nada, así que en ese caso se usan sus primeras tres: "Acme" da ACM.
+ */
+function inicialesDeCliente(cliente: string): string {
+  const normalizado = cliente
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\b([A-Z])\.\s*(?=[A-Z]\.)/g, '$1');
+
+  const palabras = normalizado.split(/[^A-Z0-9]+/).filter(Boolean);
+  const significativas = palabras.filter(
+    (palabra) => !PALABRAS_SIN_INICIAL.has(palabra),
+  );
+  const base = significativas.length > 0 ? significativas : palabras;
+  if (base.length === 1) return base[0].slice(0, LETRAS_DE_PALABRA_UNICA);
+
+  return base
+    .slice(0, MAXIMO_INICIALES)
+    .map((palabra) => palabra[0])
+    .join('');
+}
+
+/**
+ * Número sugerido: iniciales del cliente y fecha de emisión, sin separadores,
+ * solo letras y números. "Hilandería del Norte S.A." el 13/09/2026 da
+ * HN20260913.
+ *
+ * Cuando el corte por moneda parte la selección en varios documentos, todos
+ * comparten cliente y fecha, así que la moneda va al final para distinguirlos:
+ * HN20260913USD. Con un solo documento no hace falta y no se agrega. Si la
+ * moneda no deja ninguna letra ni número utilizable, desempata el orden.
+ */
+function numeroSugeridoDe(
+  cliente: string,
+  fecha: string,
+  moneda: string | null,
+  indice: number,
+  cantidadDeDocumentos: number,
+): string {
+  const encabezado = inicialesDeCliente(cliente) + soloAlfanumerico(fecha);
+  if (cantidadDeDocumentos < 2) return encabezado;
+
+  const sufijo = soloAlfanumerico(moneda ?? '');
+  return encabezado + (sufijo === '' ? String(indice + 1) : sufijo);
+}
+
+/**
+ * Un documento por cada moneda presente entre los renglones tildados.
+ *
+ * El cliente y la fecha de emisión no cambian nada del contenido: entran solo
+ * para armar el número sugerido de cada documento.
+ */
+export function armarDocumentos(
+  tildados: RenglonVenta[],
+  cliente: string,
+  fecha: string,
+): DocumentoProforma[] {
   const porMoneda = new Map<string | null, RenglonVenta[]>();
 
   for (const renglon of tildados) {
@@ -112,7 +197,7 @@ export function armarDocumentos(tildados: RenglonVenta[]): DocumentoProforma[] {
 
   return [...porMoneda.entries()]
     .sort(([a], [b]) => compararMonedas(a, b))
-    .map(([moneda, renglones], indice) => ({
+    .map(([moneda, renglones], indice, documentos) => ({
       moneda,
       clave: claveMoneda(moneda),
       renglones,
@@ -125,6 +210,12 @@ export function armarDocumentos(tildados: RenglonVenta[]): DocumentoProforma[] {
       total: redondear(
         renglones.reduce((suma, renglon) => suma + (renglon.total ?? 0), 0),
       ),
-      numeroSugerido: `P-${String(indice + 1).padStart(5, '0')}`,
+      numeroSugerido: numeroSugeridoDe(
+        cliente,
+        fecha,
+        moneda,
+        indice,
+        documentos.length,
+      ),
     }));
 }

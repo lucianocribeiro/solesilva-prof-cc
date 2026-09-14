@@ -81,7 +81,9 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
 
   // Sin empresa no se arma ningún documento. La empresa no toca el corte por
   // moneda: si salen varios documentos, todos llevan la misma.
-  const documentos = empresa ? armarDocumentos(seleccionados) : [];
+  const documentos = empresa
+    ? armarDocumentos(seleccionados, cliente, fechaDeHoy())
+    : [];
   const activo = Math.min(indiceActivo, Math.max(documentos.length - 1, 0));
   const documento = documentos[activo];
 
@@ -111,6 +113,10 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
     setFechaElegida('');
     setTildados([]);
     setIndiceActivo(0);
+    // Lo escrito sobre el documento era de otro cliente, empezando por el
+    // número: si se conservara, la proforma saldría con las iniciales del
+    // cliente anterior.
+    setCampos({});
   }
 
   function elegirFecha(nueva: string) {
