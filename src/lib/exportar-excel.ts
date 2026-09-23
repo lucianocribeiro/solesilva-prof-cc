@@ -64,29 +64,28 @@ function nombreDeArchivo(hoy: Date): string {
 
 const ENCABEZADOS_SUBTOTALES = [
   'Cliente',
-  'Moneda',
-  'Saldo inicial',
-  'Ventas',
-  'Cobranzas',
-  'Subtotal',
+  'Saldo inicial USD',
+  'Ventas USD',
+  'Cobranzas USD',
+  'Saldo USD',
 ];
 
-/** Una fila por sección: cada cliente aporta una fila por cada moneda suya. */
+/**
+ * Una fila por cliente. La cuenta corriente es una sola y está en dólares,
+ * así que ya no hay fila por combinación de cliente y moneda.
+ */
 function filasDeSubtotales(bloques: BloqueCliente[]): Celda[][] {
   const filas: Celda[][] = [ENCABEZADOS_SUBTOTALES];
 
   for (const bloque of bloques) {
-    for (const seccion of bloque.secciones) {
-      filas.push([
-        etiquetaCliente(bloque.cliente),
-        etiquetaMoneda(seccion.moneda),
-        // Sin saldo inicial cargado la celda queda vacía: no es un cero.
-        seccion.saldoInicial,
-        seccion.subtotal.ventas,
-        seccion.subtotal.cobranzas,
-        seccion.subtotal.total,
-      ]);
-    }
+    filas.push([
+      etiquetaCliente(bloque.cliente),
+      // Sin saldo inicial cargado la celda queda vacía: no es un cero.
+      bloque.saldoInicial,
+      bloque.subtotal.ventas,
+      bloque.subtotal.cobranzas,
+      bloque.subtotal.total,
+    ]);
   }
 
   return filas;
@@ -104,39 +103,44 @@ const ENCABEZADOS_MOVIMIENTOS = [
   'Precio unitario',
   'Moneda',
   'Monto',
+  'Equivalente USD',
 ];
 
 /**
- * Una fila por movimiento, ordenada por cliente, después por moneda y después
- * por fecha: los bloques ya vienen alfabéticos, las secciones de cada bloque
- * ordenadas por moneda y los movimientos de cada sección por fecha ascendente.
+ * Una fila por movimiento, ordenada por cliente y después por fecha: los
+ * bloques ya vienen alfabéticos y los movimientos de cada bloque por fecha
+ * ascendente.
  *
  * Código, metros, descripción y precio unitario son de la venta. Una cobranza
  * no tiene ninguno, así que esas celdas quedan vacías: no es un cero y no se
  * rellenan con nada.
+ *
+ * Monto es el importe original con su moneda; el equivalente en dólares es el
+ * que trae Airtable. Cuando la base no lo trae, la celda queda vacía: es la
+ * misma marca que la pantalla muestra como "sin conversión", y un cero diría
+ * otra cosa.
  */
 function filasDeMovimientos(bloques: BloqueCliente[]): Celda[][] {
   const filas: Celda[][] = [ENCABEZADOS_MOVIMIENTOS];
 
   for (const bloque of bloques) {
-    for (const seccion of bloque.secciones) {
-      for (const movimiento of seccion.movimientos) {
-        const detalle = movimiento.detalle;
+    for (const movimiento of bloque.movimientos) {
+      const detalle = movimiento.detalle;
 
-        filas.push([
-          etiquetaCliente(bloque.cliente),
-          aFechaExcel(movimiento.fecha),
-          movimiento.tipo === 'venta' ? 'Venta' : 'Cobranza',
-          movimiento.comprobante,
-          detalle?.codigo ?? null,
-          detalle?.metros ?? null,
-          detalle?.descripcion ?? null,
-          detalle?.precioUnitario ?? null,
-          etiquetaMoneda(seccion.moneda),
-          // Las cobranzas van en negativo, igual que en pantalla.
-          movimiento.aporte,
-        ]);
-      }
+      filas.push([
+        etiquetaCliente(bloque.cliente),
+        aFechaExcel(movimiento.fecha),
+        movimiento.tipo === 'venta' ? 'Venta' : 'Cobranza',
+        movimiento.comprobante,
+        detalle?.codigo ?? null,
+        detalle?.metros ?? null,
+        detalle?.descripcion ?? null,
+        detalle?.precioUnitario ?? null,
+        etiquetaMoneda(movimiento.moneda),
+        // Las cobranzas van en negativo, igual que en pantalla.
+        movimiento.aporte,
+        movimiento.aporteUSD,
+      ]);
     }
   }
 
@@ -157,17 +161,17 @@ export async function exportarCuentaCorriente(
     {
       nombre: 'Subtotales',
       filas: filasDeSubtotales(bloques),
-      anchos: [34, 14, 16, 16, 16, 18],
-      // Columnas con formato de monto: saldo inicial, ventas, cobranzas y subtotal.
-      montos: [2, 3, 4, 5],
+      anchos: [34, 18, 16, 16, 18],
+      // Saldo inicial, ventas, cobranzas y saldo.
+      montos: [1, 2, 3, 4],
       fechas: [] as number[],
     },
     {
       nombre: 'Movimientos',
       filas: filasDeMovimientos(bloques),
-      anchos: [34, 13, 12, 16, 20, 12, 40, 16, 14, 18],
-      // Metros, precio unitario y monto.
-      montos: [5, 7, 9],
+      anchos: [34, 13, 12, 16, 20, 12, 40, 16, 14, 18, 18],
+      // Metros, precio unitario, monto y equivalente en dólares.
+      montos: [5, 7, 9, 10],
       fechas: [1],
     },
   ];

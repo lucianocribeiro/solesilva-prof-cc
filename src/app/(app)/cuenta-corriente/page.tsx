@@ -35,8 +35,9 @@ export default async function CuentaCorrientePage() {
     <section>
       <h1 className="titulo-pagina">Cuenta corriente</h1>
       <p className="mt-1 text-sm texto-suave">
-        Saldo inicial, ventas y cobranzas por cliente. Cada moneda lleva su propio
-        subtotal: no se suman ni se convierten monedas distintas.
+        Saldo inicial, ventas y cobranzas por cliente, con un único saldo en
+        dólares. Cada movimiento conserva su importe original y su moneda; el
+        equivalente en dólares sale de Airtable, no lo calcula la app.
       </p>
 
       <ListaClientes bloques={bloques} />

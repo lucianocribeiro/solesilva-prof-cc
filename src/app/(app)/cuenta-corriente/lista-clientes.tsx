@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 
-import type { BloqueCliente as Bloque } from '@/lib/cuenta-corriente';
+import {
+  type BloqueCliente as Bloque,
+  tieneActividad,
+} from '@/lib/cuenta-corriente';
 import { exportarCuentaCorriente } from '@/lib/exportar-excel';
 
 import { BloqueCliente } from './bloque-cliente';
@@ -13,11 +16,6 @@ function normalizar(texto: string): string {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
-}
-
-/** Hay sección de moneda solo si esa moneda tiene saldo inicial o movimientos. */
-function tieneActividad(bloque: Bloque): boolean {
-  return bloque.secciones.length > 0;
 }
 
 function claveDe(bloque: Bloque): string {

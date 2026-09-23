@@ -18,17 +18,13 @@ import {
 export { ETIQUETA_CACHE };
 
 /**
- * La tabla Clientes tiene un único campo de saldo inicial, numérico y sin un
- * campo de moneda al lado, así que se lee como dólares porque es lo único que
- * hay para leer. El día que exista un campo de moneda, se cambia acá y en
- * ningún otro lado.
+ * Saldo inicial del cliente, en dólares: la tabla Clientes tiene un único
+ * campo de saldo y ya está expresado en dólares ("Saldo Inicial USD").
  */
-export const MONEDA_SALDO_INICIAL = 'USD';
-
 export type SaldoInicial = {
   cliente: string;
+  /** Dólares. `null` no existe acá: sin monto cargado no hay saldo inicial. */
   monto: number;
-  moneda: string | null;
 };
 
 /**
@@ -63,9 +59,19 @@ export type Movimiento = {
    * En ventas es "Venta" (VD-00020) y en cobranzas "Comprobante" (R-00011).
    */
   comprobante: string | null;
-  /** `null` cuando el monto no está cargado. No se asume cero. */
+  /** Monto en la moneda de la operación. `null` si no está cargado. */
   monto: number | null;
   moneda: string | null;
+  /**
+   * El equivalente en dólares que ya trae calculado la base, con el tipo de
+   * cambio cargado en la operación: "Venta en USD" y "Bruto cobrado USD".
+   * La app no convierte: lee este campo y nada más.
+   *
+   * `null` cuando la base no pudo convertir —falta el tipo de cambio, o la
+   * moneda no está contemplada en la fórmula—. Un `null` no es un cero: el
+   * movimiento se muestra marcado y queda fuera del saldo.
+   */
+  montoUSD: number | null;
   /** Artículo, precio unitario y metros. Solo lo traen las ventas. */
   detalle?: DetalleVenta;
   /**
@@ -107,11 +113,7 @@ export async function cargarCuentaCorriente(): Promise<DatosCuentaCorriente> {
     const monto = numero(cliente, 'Saldo Inicial USD');
     // Sin saldo inicial cargado no hay línea de saldo inicial.
     if (razonSocial === null || monto === null) continue;
-    saldosIniciales.push({
-      cliente: razonSocial,
-      monto,
-      moneda: MONEDA_SALDO_INICIAL,
-    });
+    saldosIniciales.push({ cliente: razonSocial, monto });
   }
 
   const ventas: Movimiento[] = [];
@@ -132,6 +134,7 @@ export async function cargarCuentaCorriente(): Promise<DatosCuentaCorriente> {
       comprobante: texto(venta, 'Venta'),
       monto: numero(venta, 'Total Venta'),
       moneda: texto(venta, 'Moneda Venta'),
+      montoUSD: numero(venta, 'Venta en USD'),
       detalle: {
         codigo: articulo?.codigo ?? null,
         descripcion: articulo?.descripcion ?? null,
@@ -158,9 +161,10 @@ export async function cargarCuentaCorriente(): Promise<DatosCuentaCorriente> {
         fecha: texto(cobranza, 'Fecha'),
         cliente,
         comprobante: texto(cobranza, 'Comprobante'),
-        // Solo el bruto: nada de gastos, neto ni convertido a dólares.
+        // Solo el bruto: nada de gastos ni de neto.
         monto: numero(cobranza, 'Monto Bruto'),
         moneda: texto(cobranza, 'Moneda'),
+        montoUSD: numero(cobranza, 'Bruto cobrado USD'),
         ...(compartida ? { compartidoConOtrosClientes: true } : {}),
       });
     }

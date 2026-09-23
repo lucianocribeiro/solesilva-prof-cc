@@ -113,18 +113,16 @@ body {
     @apply w-full overflow-x-auto;
   }
 
-  /* --- Secciones de moneda ------------------------------------------------
-     Dentro del bloque de un cliente, cada moneda es su propia cuenta
-     corriente: encabezado, saldo inicial, movimientos y subtotal. La línea
-     fuerte entre secciones deja claro que una no continúa a la otra.
-  ------------------------------------------------------------------------ */
-  .seccion-moneda + .seccion-moneda {
-    @apply border-t border-borde-fuerte;
+  /* Etiqueta de moneda al lado del importe original: chica y gris, para que
+     no compita con la cifra pero nunca falte. */
+  .tabla-moneda {
+    @apply text-xs uppercase tracking-wide text-texto-suave;
   }
 
-  .seccion-moneda-titulo {
-    @apply border-b border-borde px-4 py-2 text-xs font-semibold uppercase
-      tracking-wide;
+  /* Aviso al pie del bloque: el saldo deja afuera movimientos que la base no
+     pudo convertir. Va pegado al saldo, que es donde se lo necesita leer. */
+  .aviso-saldo {
+    @apply text-xs font-normal text-texto-suave;
   }
 
   /* Celda de monto o cantidad: alineada a la derecha, cifras de ancho fijo. */

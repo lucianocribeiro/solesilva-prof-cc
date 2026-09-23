@@ -1,21 +1,27 @@
 /**
  * Armado de la cuenta corriente: funciones puras, sin nada de React.
  *
- * Reglas que no se negocian:
- * - No se valida, no se corrige, no se completa y no se convierte nada.
- * - Nunca se suman montos de monedas distintas.
- * - No hay ninguna lista de monedas: la moneda es el valor que trae el campo y
- *   se agrupa por los valores que efectivamente aparecen en los datos.
- * - La ausencia de moneda es un grupo más, representado por `null`.
+ * Cada cliente tiene una sola cuenta corriente y está expresada en dólares.
+ * El negocio vende en dólares y cobra en la moneda que el cliente pueda pagar,
+ * así que separar por moneda mostraba deuda en una sección y saldo a favor en
+ * otra cuando en realidad la venta ya estaba pagada.
  *
- * Cada moneda es su propia cuenta corriente dentro del bloque del cliente: su
- * saldo inicial, sus movimientos y su subtotal. Un movimiento vive en una sola
- * sección, la de su moneda, y no se mezcla con las demás.
+ * Reglas que no se negocian:
+ * - La app no convierte nada y no aplica ninguna cotización. El equivalente en
+ *   dólares ya viene calculado en Airtable, con el tipo de cambio cargado en
+ *   cada operación, y acá solo se lee y se suma.
+ * - El importe original y su moneda se conservan enteros: quien concilia tiene
+ *   que ver que la clienta pagó 1.000.000 en pesos, no solo su equivalente.
+ * - Un movimiento sin equivalente en dólares se muestra igual, marcado, y
+ *   queda fuera del saldo. Nunca se descarta ni se le asume un valor.
+ * - Un equivalente de cero no es una ausencia: es un cero real y entra al
+ *   saldo. Lo que distingue un caso del otro es que el dato esté o no esté,
+ *   nunca su valor.
  */
 
 import type { DetalleVenta, Movimiento, SaldoInicial } from '@/lib/datos';
 import { compararFechas } from '@/lib/fecha';
-import { claveMoneda, compararMonedas, normalizarMoneda, redondear } from '@/lib/moneda';
+import { normalizarMoneda, redondear } from '@/lib/moneda';
 
 export type TipoMovimiento = 'venta' | 'cobranza';
 
@@ -27,38 +33,32 @@ export type MovimientoCliente = {
   comprobante: string | null;
   /** Monto tal como viene en la base. `null` si no está cargado. */
   monto: number | null;
+  /** Moneda del monto original. `null` cuando el registro no la tiene cargada. */
+  moneda: string | null;
   /**
-   * Lo que el movimiento aporta al saldo: + en ventas, − en cobranzas.
-   * `null` cuando no hay monto: una ausencia no aporta nada, y tampoco es cero.
+   * Lo que el movimiento aporta en su moneda original: + en ventas, − en
+   * cobranzas. `null` cuando no hay monto: una ausencia no aporta nada, y
+   * tampoco es cero.
    */
   aporte: number | null;
+  /**
+   * Lo que el movimiento aporta al saldo, en dólares, con el mismo signo.
+   * `null` cuando la base no trae equivalente: ese movimiento no se suma.
+   */
+  aporteUSD: number | null;
   /** Artículo, precio unitario y metros. Solo lo traen las ventas. */
   detalle?: DetalleVenta;
   /** La cobranza está vinculada a más de un cliente en la base. */
   compartidoConOtrosClientes?: boolean;
 };
 
+/** Todo en dólares: es la única moneda en la que existe el saldo. */
 export type Subtotal = {
   saldoInicial: number;
   ventas: number;
   cobranzas: number;
-  /** saldo inicial + ventas − cobranzas, siempre dentro de la misma moneda. */
+  /** saldo inicial + ventas − cobranzas. */
   total: number;
-};
-
-/** La cuenta corriente de un cliente en una moneda. */
-export type SeccionMoneda = {
-  moneda: string | null;
-  /** Clave estable para las keys de React. */
-  clave: string;
-  /**
-   * Saldo inicial de esta moneda. `null` cuando no hay ninguno cargado: un
-   * saldo inicial de cero está cargado y se muestra igual.
-   */
-  saldoInicial: number | null;
-  /** Ordenados por fecha ascendente, con los que no tienen fecha al final. */
-  movimientos: MovimientoCliente[];
-  subtotal: Subtotal;
 };
 
 export type BloqueCliente = {
@@ -68,21 +68,19 @@ export type BloqueCliente = {
    */
   cliente: string | null;
   /**
-   * Una sección por moneda, alfabéticas y con la de "sin moneda" al final.
-   * Vacío cuando el cliente no tiene ni saldo inicial ni movimientos.
+   * Saldo inicial en dólares. `null` cuando no hay ninguno cargado: un saldo
+   * inicial de cero está cargado y se muestra igual.
    */
-  secciones: SeccionMoneda[];
-};
-
-/** Acumulador por moneda mientras se recorre un cliente. */
-type Acumulado = {
-  moneda: string | null;
-  saldoInicial: number;
-  /** Se marca aparte del monto: un saldo inicial cargado en cero igual se muestra. */
-  tieneSaldoInicial: boolean;
-  ventas: number;
-  cobranzas: number;
+  saldoInicial: number | null;
+  /** Ordenados por fecha ascendente, con los que no tienen fecha al final. */
   movimientos: MovimientoCliente[];
+  subtotal: Subtotal;
+  /**
+   * Cuántos movimientos del bloque no tienen equivalente en dólares. Se
+   * muestran, pero no están en el subtotal, y el bloque lo avisa: si no,
+   * alguien concilia contra un número incompleto sin saberlo.
+   */
+  sinConversion: number;
 };
 
 function armarBloque(
@@ -91,82 +89,72 @@ function armarBloque(
   ventas: Movimiento[],
   cobranzas: Movimiento[],
 ): BloqueCliente {
-  const porMoneda = new Map<string | null, Acumulado>();
+  // Un saldo inicial cargado en cero se muestra igual, así que la existencia
+  // se marca aparte del monto.
+  const tieneSaldoInicial = saldos.length > 0;
+  const saldoInicial = saldos.reduce((suma, saldo) => suma + saldo.monto, 0);
 
-  function acumulado(moneda: string | null): Acumulado {
-    const clave = normalizarMoneda(moneda);
-    const existente = porMoneda.get(clave);
-    if (existente) return existente;
+  let totalVentas = 0;
+  let totalCobranzas = 0;
+  let sinConversion = 0;
 
-    const nuevo: Acumulado = {
-      moneda: clave,
-      saldoInicial: 0,
-      tieneSaldoInicial: false,
-      ventas: 0,
-      cobranzas: 0,
-      movimientos: [],
-    };
-    porMoneda.set(clave, nuevo);
-    return nuevo;
-  }
-
-  for (const saldo of saldos) {
-    const fila = acumulado(saldo.moneda);
-    fila.saldoInicial += saldo.monto;
-    fila.tieneSaldoInicial = true;
-  }
+  const movimientos: MovimientoCliente[] = [];
 
   ventas.forEach((venta, indice) => {
-    // Sin monto cargado no hay nada que sumar. El movimiento se muestra igual.
-    const fila = acumulado(venta.moneda);
-    if (venta.monto !== null) fila.ventas += venta.monto;
+    // Sin equivalente en dólares no hay nada que sumar al saldo. El
+    // movimiento se muestra igual, marcado.
+    if (venta.montoUSD === null) sinConversion += 1;
+    else totalVentas += venta.montoUSD;
 
-    fila.movimientos.push({
+    movimientos.push({
       id: `venta-${indice}`,
       fecha: venta.fecha,
       tipo: 'venta',
       comprobante: venta.comprobante,
       monto: venta.monto,
+      moneda: normalizarMoneda(venta.moneda),
       aporte: venta.monto,
+      aporteUSD: venta.montoUSD,
       ...(venta.detalle ? { detalle: venta.detalle } : {}),
     });
   });
 
   cobranzas.forEach((cobranza, indice) => {
-    const fila = acumulado(cobranza.moneda);
-    if (cobranza.monto !== null) fila.cobranzas += cobranza.monto;
+    if (cobranza.montoUSD === null) sinConversion += 1;
+    else totalCobranzas += cobranza.montoUSD;
 
-    fila.movimientos.push({
+    movimientos.push({
       id: `cobranza-${indice}`,
       fecha: cobranza.fecha,
       tipo: 'cobranza',
       comprobante: cobranza.comprobante,
       monto: cobranza.monto,
+      moneda: normalizarMoneda(cobranza.moneda),
       aporte: cobranza.monto === null ? null : -cobranza.monto,
+      aporteUSD: cobranza.montoUSD === null ? null : -cobranza.montoUSD,
       ...(cobranza.compartidoConOtrosClientes
         ? { compartidoConOtrosClientes: true }
         : {}),
     });
   });
 
-  const secciones = [...porMoneda.values()]
-    .sort((a, b) => compararMonedas(a.moneda, b.moneda))
-    .map((fila) => ({
-      moneda: fila.moneda,
-      clave: claveMoneda(fila.moneda),
-      saldoInicial: fila.tieneSaldoInicial ? redondear(fila.saldoInicial) : null,
-      movimientos: [...fila.movimientos].sort((a, b) =>
-        compararFechas(a.fecha, b.fecha),
-      ),
-      subtotal: {
-        saldoInicial: redondear(fila.saldoInicial),
-        ventas: redondear(fila.ventas),
-        cobranzas: redondear(fila.cobranzas),
-        total: redondear(fila.saldoInicial + fila.ventas - fila.cobranzas),
-      },
-    }));
+  return {
+    cliente,
+    saldoInicial: tieneSaldoInicial ? redondear(saldoInicial) : null,
+    movimientos: movimientos.sort((a, b) => compararFechas(a.fecha, b.fecha)),
+    subtotal: {
+      saldoInicial: redondear(saldoInicial),
+      ventas: redondear(totalVentas),
+      cobranzas: redondear(totalCobranzas),
+      total: redondear(saldoInicial + totalVentas - totalCobranzas),
+    },
+    sinConversion,
+  };
+}
 
-  return { cliente, secciones };
+/** Hay algo que mostrar solo si el cliente tiene saldo inicial o movimientos. */
+export function tieneActividad(bloque: BloqueCliente): boolean {
+  return bloque.saldoInicial !== null || bloque.movimientos.length > 0;
 }
 
 /**
