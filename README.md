@@ -192,6 +192,27 @@ número, la fecha de emisión y la moneda. Del logo se fija solo el alto, tanto
 en pantalla como en el PDF: el ancho sale de la proporción del archivo, así que
 cambiarlo por otro no lo deforma.
 
+## Foto del artículo
+
+La primera columna del detalle es la foto de la tela, para que se reconozca
+sin depender del código. Sale del campo de adjuntos `Imagen` de la tabla
+Artículos. Si el artículo no tiene foto, la celda va vacía, sin ícono ni imagen
+de reemplazo.
+
+Las URLs de adjuntos de Airtable caducan, así que no se guardan ni llegan al
+navegador. El navegador solo conoce `/proformas/foto/<id del artículo>`, una
+ruta de la app que queda detrás del login. Cada vez que se pide, el servidor lee
+el artículo en ese momento y baja la miniatura `large` de Airtable. Los
+originales pesan entre 3,7 y 9,6 MB, así que no se usan. La miniatura se recorta
+al cuadrado desde el centro, se achica a 168 px y se recomprime como JPEG con
+sharp. Cada foto termina pesando entre 2 y 5 kB. En el documento se ve a 56 px,
+unos 15 mm en papel, con resolución de sobra para un teléfono o una impresora.
+
+Si varios renglones son del mismo artículo, la foto se baja una sola vez: el
+navegador la guarda cinco minutos y el PDF la embebe una sola vez, aunque la
+dibuje en cada renglón. En pantalla y en papel es un `<img>` y no un fondo de
+CSS, porque muchos navegadores no imprimen los fondos.
+
 ## PDF de la proforma
 
 Junto al botón de imprimir hay uno que genera el PDF del documento visible: uno
@@ -205,8 +226,10 @@ pesa alrededor de diez kB. Se usa Helvetica, una de las catorce fuentes
 estándar del formato, así que no hay que embeber ninguna tipografía; su
 codificación cubre todo el español.
 
-Lo único embebido es el logo, que suma unos 3,8 kB: la misma proforma pasó de
-4,8 a 8,6 kB al agregarlo. Se embebe con la compresión más fuerte de jsPDF, que
+Lo único embebido son las imágenes. El logo suma unos 3,8 kB: la misma proforma
+pasó de 4,8 a 8,6 kB al agregarlo. Las fotos de los artículos suman entre 2 y
+5 kB cada una. Con tres telas distintas, la proforma pesa unos 19 kB, y con diez
+renglones de diez telas distintas queda alrededor de 60 kB. Se embebe con la compresión más fuerte de jsPDF, que
 para este archivo es la que menos pesa —sin comprimir serían 28 kB—, y se lee
 del mismo `/solesilva.png` que muestra la pantalla, en vez de llevar una copia
 adentro del bundle. Se precarga junto con la librería al apuntar el botón,
@@ -227,15 +250,15 @@ menú de compartir no muestra ningún error.
 
 ## Pantallas angostas
 
-El documento está maquetado para hoja A4 y en un teléfono la tabla de cinco
+El documento está maquetado para hoja A4 y en un teléfono la tabla de seis
 columnas no entra. En vez de dejarla scrollear de costado —que obliga a
 arrastrar para leer un total— por debajo de 640 px cada renglón se reacomoda
-como una ficha, con el código y la descripción arriba y los montos rotulados
-debajo.
+como una ficha, con la foto a la izquierda del código y la descripción, y los
+montos rotulados debajo. Sin foto, el código y la descripción usan todo el ancho.
 
 Todo eso vive en un bloque `@media screen and (max-width: 640px)` de
 `globals.css`: no lo ve la impresora. En papel el documento sigue siendo la
-misma hoja A4 con su tabla de cinco columnas.
+misma hoja A4 con su tabla de seis columnas.
 
 ## Estructura
 
@@ -257,6 +280,7 @@ src/
     compartir.ts              menú de compartir del sistema, con descarga de respaldo
     datos.ts                  cuenta corriente: clientes, saldos y movimientos
     renglones-venta.ts        renglones de venta para proformas
+    fotos.ts                  foto del artículo: la baja de Airtable y la achica
     empresas.ts               datos fijos de las dos empresas emisoras
     auth-actions.ts           Server Actions de ingresar y salir
     env.ts                    lectura y validación de variables de entorno

@@ -256,7 +256,7 @@ body {
   }
 
   /* Separación explícita entre columnas, para que nada quede pegado. Con la
-     columna de descripción son cinco, así que el aire entre ellas se ajusta
+     foto y la descripción son seis, así que el aire entre ellas se ajusta
      para que a los montos no les falte ancho. */
   .doc-tabla th + th,
   .doc-tabla td + td {
@@ -265,6 +265,12 @@ body {
 
   .doc-tabla .doc-num {
     @apply text-right tabular-nums;
+  }
+
+  /* Foto de la tela, cuadrada. Si el artículo no tiene foto la celda va
+     vacía, sin ícono ni imagen de reemplazo. */
+  .doc-foto-imagen {
+    @apply block size-14 rounded-sm object-cover;
   }
 
   /* Descripción de la tela. Va vacía mientras el dato no esté cargado. */
@@ -344,7 +350,7 @@ body {
    la sigue definiendo únicamente el bloque de más abajo, así que el documento
    sale de la impresora exactamente igual que antes.
 
-   La decisión de fondo es sobre la tabla del documento: cinco columnas
+   La decisión de fondo es sobre la tabla del documento: seis columnas
    maquetadas para A4 no entran en un teléfono. Entre dejarla scrollear de
    costado o reacomodarla, se eligió reacomodarla: cada renglón pasa a ser una
    ficha con el código y la descripción arriba y sus montos rotulados debajo,
@@ -431,6 +437,46 @@ body {
 
   .doc-tabla td + td {
     padding-left: 0;
+  }
+
+  /* La ficha es una grilla: la foto a la izquierda, a la altura del código y
+     la descripción, y los montos debajo, a todo el ancho. */
+  .doc-tabla tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    /* Si la foto es más alta que el código y la descripción, el sobrante va
+       debajo de la descripción y no entre los dos. */
+    grid-template-rows: auto 1fr;
+    column-gap: 0.85rem;
+  }
+
+  .doc-tabla td {
+    grid-column: 1 / -1;
+  }
+
+  .doc-tabla td.doc-foto {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .doc-tabla td.doc-foto + td,
+  .doc-tabla td.doc-descripcion {
+    grid-column: 2;
+  }
+
+  /* Sin foto, la celda no ocupa lugar y el código vuelve al ancho completo. */
+  .doc-tabla td.doc-foto:empty {
+    display: none;
+  }
+
+  .doc-tabla td.doc-foto:empty + td,
+  .doc-tabla td.doc-foto:empty ~ td.doc-descripcion {
+    grid-column: 1 / -1;
+  }
+
+  /* Un poco más de aire entre la foto y el primer monto. */
+  .doc-tabla td.doc-foto:not(:empty) ~ td[data-rotulo]:nth-child(4) {
+    padding-top: 0.6rem;
   }
 
   /* La descripción no es un monto: no lleva rótulo ni se alinea a la derecha,

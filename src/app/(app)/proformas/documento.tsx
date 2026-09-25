@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Ausente } from '@/components/ausente';
 import { Moneda } from '@/components/moneda';
@@ -9,7 +9,12 @@ import { Monto } from '@/components/monto';
 import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
 import { fechaDeHoy } from '@/lib/fecha';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
-import type { CamposDocumento, DocumentoProforma } from '@/lib/proformas';
+import {
+  FRACCIONES_COLUMNA,
+  LADO_FOTO,
+  type CamposDocumento,
+  type DocumentoProforma,
+} from '@/lib/proformas';
 
 /**
  * Textarea que crece con su contenido, para que en papel no quede texto
@@ -54,6 +59,32 @@ function AreaEditable({
       />
       <p className="doc-impreso">{valor}</p>
     </>
+  );
+}
+
+/**
+ * Foto del artículo. Es un <img> y no un fondo de CSS, porque muchos
+ * navegadores no imprimen los fondos. Carga enseguida y no en diferido: si se
+ * imprime apenas se arma el documento, tiene que estar ya en la hoja.
+ *
+ * Si la foto no se puede traer, la celda queda vacía, igual que cuando el
+ * artículo no tiene foto. No se muestra ningún ícono ni imagen de reemplazo.
+ */
+function FotoArticulo({ src, codigo }: { src: string; codigo: string | null }) {
+  const [fallo, setFallo] = useState(false);
+  if (fallo) return null;
+
+  return (
+    <Image
+      src={src}
+      alt={codigo ? `Tela ${codigo}` : 'Tela'}
+      width={LADO_FOTO}
+      height={LADO_FOTO}
+      className="doc-foto-imagen"
+      unoptimized
+      loading="eager"
+      onError={() => setFallo(true)}
+    />
   );
 }
 
@@ -134,17 +165,18 @@ export function Documento({
 
       {/* En pantallas angostas la tabla se reacomoda: cada renglón pasa a ser
           una ficha y el rótulo de cada monto sale del data-rotulo. En papel no
-          cambia nada, sigue siendo la tabla de cinco columnas. */}
+          cambia nada, sigue siendo la tabla de seis columnas. */}
       <table className="doc-tabla">
         <colgroup>
-          <col style={{ width: '24%' }} />
-          <col style={{ width: '24%' }} />
-          <col style={{ width: '14%' }} />
-          <col style={{ width: '19%' }} />
-          <col style={{ width: '19%' }} />
+          {FRACCIONES_COLUMNA.map((fraccion, indice) => (
+            <col key={indice} style={{ width: `${fraccion * 100}%` }} />
+          ))}
         </colgroup>
         <thead>
           <tr>
+            <th>
+              <span className="sr-only">Foto</span>
+            </th>
             <th>Código</th>
             <th>Descripción</th>
             <th className="doc-num">Metros</th>
@@ -155,6 +187,14 @@ export function Documento({
         <tbody>
           {documento.renglones.map((renglon) => (
             <tr key={renglon.id}>
+              {/* Sin foto en Airtable, la celda va vacía: nada adentro, ni
+                  siquiera un espacio, para que la ficha del celular la pueda
+                  plegar con :empty. */}
+              <td className="doc-foto">
+                {renglon.foto ? (
+                  <FotoArticulo src={renglon.foto} codigo={renglon.codigo} />
+                ) : null}
+              </td>
               <td>
                 <span className="block font-medium">
                   {renglon.codigo ?? <Ausente>Sin artículo</Ausente>}

@@ -37,6 +37,23 @@ export const CONDICIONES_POR_DEFECTO =
   'Los precios están sujetos a confirmación de stock al momento del pedido.\n' +
   'Forma de pago y plazo de entrega a convenir con la orden de compra.';
 
+/**
+ * Lado de la foto del artículo en el documento, en píxeles CSS. El PDF dibuja
+ * la misma medida convertida a milímetros, y el servidor la entrega con tres
+ * veces esa cantidad de píxeles.
+ */
+export const LADO_FOTO = 56;
+
+/**
+ * Ancho de cada columna del detalle, como fracción del ancho de la tabla: foto,
+ * código, descripción, metros, precio unitario y total. La pantalla, la
+ * impresión y el PDF usan estas mismas proporciones.
+ *
+ * La de la foto es apenas más ancha que la imagen: el aire hasta el código lo
+ * pone la separación entre columnas.
+ */
+export const FRACCIONES_COLUMNA = [0.09, 0.2, 0.2, 0.13, 0.19, 0.19];
+
 export type DocumentoProforma = {
   moneda: string | null;
   /** Clave estable para el estado de la pantalla y para las keys de React. */

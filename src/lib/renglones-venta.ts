@@ -8,6 +8,7 @@
 
 import { leerTabla, numero, TABLAS, texto, vinculos } from '@/lib/airtable';
 import { indiceDeArticulos } from '@/lib/datos';
+import { urlDeFoto } from '@/lib/fotos';
 
 export type RenglonVenta = {
   id: string;
@@ -22,6 +23,13 @@ export type RenglonVenta = {
    * en toda la base y por eso sale en blanco. No se reemplaza por el código.
    */
   descripcion: string | null;
+  /**
+   * Dirección de la foto del artículo dentro de la app, o `null` si el
+   * artículo no tiene foto cargada. Nunca es una URL de Airtable: esas caducan
+   * y no salen del servidor. Dos renglones del mismo artículo traen la misma
+   * dirección, y eso es lo que permite bajar y embeber la foto una sola vez.
+   */
+  foto: string | null;
   metros: number | null;
   precioUnitario: number | null;
   moneda: string | null;
@@ -63,6 +71,7 @@ export async function cargarRenglonesVenta(): Promise<RenglonVenta[]> {
       cliente,
       codigo: articulo?.codigo ?? null,
       descripcion: articulo?.descripcion ?? null,
+      foto: idArticulo && articulo?.tieneFoto ? urlDeFoto(idArticulo) : null,
       metros: numero(venta, 'Metros'),
       precioUnitario: numero(venta, 'Precio unitario (fijado)'),
       // Campo calculado en Airtable: se toma tal cual viene.

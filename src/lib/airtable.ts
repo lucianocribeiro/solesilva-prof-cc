@@ -105,6 +105,33 @@ export async function leerTabla(tabla: string): Promise<Registro[]> {
   return registros;
 }
 
+/**
+ * Lee un solo registro, sin cache: lo que se busca en él tiene que estar
+ * vigente en este momento. Es el caso de los adjuntos, cuyas URLs caducan.
+ *
+ * Devuelve `null` si el registro no existe.
+ */
+export async function leerRegistro(
+  tabla: string,
+  id: string,
+): Promise<Registro | null> {
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`${API}/${airtableBaseId()}/${tabla}/${id}`, {
+      headers: { Authorization: `Bearer ${airtableToken()}` },
+      cache: 'no-store',
+    });
+  } catch {
+    throw new ErrorAirtable('No se pudo conectar con Airtable.');
+  }
+
+  if (respuesta.status === 404) return null;
+  if (!respuesta.ok) {
+    throw new ErrorAirtable(`Airtable respondió ${respuesta.status}.`);
+  }
+  return (await respuesta.json()) as Registro;
+}
+
 /* ---------------------------------------------------------------------------
    Lectura de campos.
 
@@ -121,6 +148,21 @@ export function texto(registro: Registro, campo: string): string | null {
 export function numero(registro: Registro, campo: string): number | null {
   const valor = registro.fields[campo];
   return typeof valor === 'number' ? valor : null;
+}
+
+/** Un adjunto tal como lo devuelve la API. Solo lo que se usa. */
+export type Adjunto = {
+  thumbnails?: { large?: { url?: string } };
+};
+
+/** Adjuntos de un campo. Vacío si el campo no tiene ninguno. */
+export function adjuntos(registro: Registro, campo: string): Adjunto[] {
+  const valor = registro.fields[campo];
+  if (!Array.isArray(valor)) return [];
+  return valor.filter(
+    (adjunto): adjunto is Adjunto =>
+      typeof adjunto === 'object' && adjunto !== null,
+  );
 }
 
 /** Ids de los registros vinculados. Vacío si el vínculo no está cargado. */

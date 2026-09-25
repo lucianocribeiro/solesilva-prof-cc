@@ -7,6 +7,7 @@
  */
 
 import {
+  adjuntos,
   ETIQUETA_CACHE,
   leerTabla,
   numero,
@@ -16,6 +17,9 @@ import {
 } from '@/lib/airtable';
 
 export { ETIQUETA_CACHE };
+
+/** Campo de adjuntos de la tabla Artículos con la foto de la tela. */
+export const CAMPO_FOTO = 'Imagen';
 
 /**
  * Saldo inicial del cliente, en dólares: la tabla Clientes tiene un único
@@ -182,6 +186,12 @@ export type Articulo = {
    * ni con ningún otro texto, porque sería inventar un dato que no está.
    */
   descripcion: string | null;
+  /**
+   * Si el campo Imagen tiene algún adjunto. Es lo único que se guarda de la
+   * foto: las URLs de Airtable caducan, así que la imagen se baja recién al
+   * mostrarla, desde el servidor. Ver `src/lib/fotos.ts`.
+   */
+  tieneFoto: boolean;
 };
 
 /** Índice de artículos por id de registro, para resolver el vínculo de la venta. */
@@ -193,6 +203,7 @@ export async function indiceDeArticulos(): Promise<Map<string, Articulo>> {
     indice.set(registro.id, {
       codigo: texto(registro, 'Artículo'),
       descripcion: texto(registro, 'Descripción'),
+      tieneFoto: adjuntos(registro, CAMPO_FOTO).length > 0,
     });
   }
   return indice;

@@ -10,8 +10,10 @@
  *
  * Se usa Helvetica, una de las catorce fuentes estándar del formato: no hay que
  * embeber ninguna tipografía. Su codificación WinAnsi cubre todo el español,
- * acentos y eñes incluidos. Lo único embebido es el logo, que suma unos 4 kB, y
- * el archivo queda en el orden de los diez kB.
+ * acentos y eñes incluidos. Lo único embebido son las imágenes: el logo, que
+ * suma unos 4 kB, y la foto de cada artículo. Las fotos llegan ya achicadas y
+ * recomprimidas por el servidor, y cada una se embebe una sola vez aunque el
+ * artículo aparezca en varios renglones.
  *
  * El documento es un espejo del que se ve en pantalla: mismos textos, mismas
  * marcas de campo ausente, mismos formatos de monto y de fecha. Acá no se
@@ -20,7 +22,12 @@
 
 import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
-import type { CamposDocumento, DocumentoProforma } from '@/lib/proformas';
+import {
+  FRACCIONES_COLUMNA,
+  LADO_FOTO,
+  type CamposDocumento,
+  type DocumentoProforma,
+} from '@/lib/proformas';
 
 type JsPDF = InstanceType<typeof import('jspdf').jsPDF>;
 
@@ -58,8 +65,50 @@ function cargarLogo(): Promise<Uint8Array> {
   return logo;
 }
 
+/** Las direcciones de foto del documento, sin repetir. */
+function fotosDe(documento: DocumentoProforma): string[] {
+  const direcciones = documento.renglones
+    .map((renglon) => renglon.foto)
+    .filter((foto): foto is string => foto !== null);
+  return [...new Set(direcciones)];
+}
+
 /**
- * Adelanta la carga de la librería y del logo.
+ * Baja una foto de la app, nunca de Airtable. Un 404 quiere decir que el
+ * artículo ya no tiene foto, así que la celda va vacía, igual que en pantalla.
+ * Cualquier otra falla corta el PDF: saldría sin una foto que sí existe.
+ *
+ * No se guarda nada acá. La respuesta queda cinco minutos en el cache del
+ * navegador, así que la foto que ya mostró la pantalla no se vuelve a bajar.
+ */
+async function cargarFoto(direccion: string): Promise<Uint8Array | null> {
+  const respuesta = await fetch(direccion);
+  if (respuesta.status === 404) return null;
+  if (!respuesta.ok) {
+    throw new Error(`No se pudo leer la foto (${respuesta.status}).`);
+  }
+  return new Uint8Array(await respuesta.arrayBuffer());
+}
+
+/** Una descarga por artículo, aunque aparezca en varios renglones. */
+async function cargarFotos(
+  documento: DocumentoProforma,
+): Promise<Map<string, Uint8Array>> {
+  const direcciones = fotosDe(documento);
+  const imagenes = await Promise.all(direcciones.map(cargarFoto));
+
+  const fotos = new Map<string, Uint8Array>();
+  direcciones.forEach((direccion, indice) => {
+    const imagen = imagenes[indice];
+    if (imagen) fotos.set(direccion, imagen);
+  });
+  return fotos;
+}
+
+/**
+ * Adelanta la carga de la librería y del logo. Las fotos no hace falta
+ * adelantarlas: las acaba de bajar la pantalla y están en el cache del
+ * navegador.
  *
  * Compartir tiene que ocurrir dentro del gesto del usuario: si al apretar el
  * botón hubiera que bajar la librería, algunos navegadores considerarían que el
@@ -105,10 +154,7 @@ const DERECHA = ANCHO_HOJA - MARGEN;
 const ANCHO = DERECHA - IZQUIERDA;
 const LIMITE_INFERIOR = ALTO_HOJA - MARGEN;
 
-/** Las mismas proporciones que el colgroup de la tabla en pantalla. */
-const FRACCIONES_COLUMNA = [0.24, 0.24, 0.14, 0.19, 0.19];
-
-/** Bordes de las cinco columnas: seis valores, del izquierdo al derecho. */
+/** Bordes de las seis columnas: siete valores, del izquierdo al derecho. */
 const COLUMNAS = FRACCIONES_COLUMNA.reduce<number[]>(
   (bordes, fraccion) => [...bordes, bordes[bordes.length - 1] + fraccion * ANCHO],
   [IZQUIERDA],
@@ -117,9 +163,18 @@ const COLUMNAS = FRACCIONES_COLUMNA.reduce<number[]>(
 /** El mismo aire entre columnas que el `pl-6` de la tabla en pantalla. */
 const SEPARACION = aMm(24);
 
+/** Lado de la foto: el mismo de la pantalla. */
+const LADO_FOTO_MM = aMm(LADO_FOTO);
+
+/**
+ * El código no arranca en el borde de su columna sino después de la
+ * separación, igual que en pantalla. Si no, quedaría pegado a la foto.
+ */
+const IZQUIERDA_CODIGO = COLUMNAS[1] + SEPARACION;
+
 /** Ancho útil de las dos columnas de texto: el resto lo ocupa la separación. */
-const ANCHO_CODIGO = COLUMNAS[1] - COLUMNAS[0] - SEPARACION;
-const ANCHO_DESCRIPCION = COLUMNAS[2] - COLUMNAS[1] - SEPARACION;
+const ANCHO_CODIGO = COLUMNAS[2] - IZQUIERDA_CODIGO - SEPARACION;
+const ANCHO_DESCRIPCION = COLUMNAS[3] - COLUMNAS[2] - SEPARACION;
 
 /** Ancho del bloque de totales: el w-80 de la pantalla. */
 const ANCHO_TOTALES = aMm(320);
@@ -355,7 +410,12 @@ export type DatosPdf = {
   empresa: Empresa;
 };
 
-function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
+function dibujar(
+  doc: JsPDF,
+  datos: DatosPdf,
+  imagenLogo: Uint8Array,
+  fotos: Map<string, Uint8Array>,
+): void {
   const { documento, cliente, campos, fecha, empresa } = datos;
 
   let y = MARGEN;
@@ -443,14 +503,15 @@ function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
   const cabecerasNumericas = ['METROS', 'PRECIO UNITARIO', 'TOTAL'];
 
   const dibujarCabecera = (): void => {
-    escribir(doc, 'CÓDIGO', ROTULO, COLUMNAS[0], y + baseDeLinea(ROTULO));
-    escribir(doc, 'DESCRIPCIÓN', ROTULO, COLUMNAS[1], y + baseDeLinea(ROTULO));
+    // La columna de la foto no lleva título, igual que en pantalla.
+    escribir(doc, 'CÓDIGO', ROTULO, IZQUIERDA_CODIGO, y + baseDeLinea(ROTULO));
+    escribir(doc, 'DESCRIPCIÓN', ROTULO, COLUMNAS[2], y + baseDeLinea(ROTULO));
     cabecerasNumericas.forEach((cabecera, indice) => {
       escribir(
         doc,
         cabecera,
         ROTULO,
-        COLUMNAS[indice + 3],
+        COLUMNAS[indice + 4],
         y + baseDeLinea(ROTULO),
         'derecha',
       );
@@ -487,9 +548,17 @@ function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
 
     const altoTextoDescripcion = lineasDescripcion.length * altoLinea(CELDA);
 
+    // Sin foto en la base, la celda va vacía y la fila mide lo que su texto.
+    const foto = renglon.foto ? fotos.get(renglon.foto) : undefined;
+
     const altoFila =
       aMm(12) +
-      Math.max(altoTextoCodigo, altoTextoDescripcion, altoLinea(CELDA)) +
+      Math.max(
+        altoTextoCodigo,
+        altoTextoDescripcion,
+        altoLinea(CELDA),
+        foto ? LADO_FOTO_MM : 0,
+      ) +
       aMm(12);
 
     // Una fila no se parte entre dos hojas: si no entra entera, pasa a la
@@ -499,10 +568,26 @@ function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
       dibujarCabecera();
     }
 
+    if (foto && renglon.foto) {
+      // El alias es la dirección de la foto: si el artículo se repite en otro
+      // renglón, jsPDF reusa la imagen que ya embebió en vez de sumar otra
+      // copia. Va sin compresión extra porque ya es un JPEG.
+      doc.addImage(
+        foto,
+        'JPEG',
+        COLUMNAS[0],
+        y + aMm(12),
+        LADO_FOTO_MM,
+        LADO_FOTO_MM,
+        renglon.foto,
+        'NONE',
+      );
+    }
+
     let yTexto = y + aMm(12);
 
     for (const linea of lineasCodigo) {
-      escribir(doc, linea, estiloCodigo, COLUMNAS[0], yTexto + baseDeLinea(estiloCodigo));
+      escribir(doc, linea, estiloCodigo, IZQUIERDA_CODIGO, yTexto + baseDeLinea(estiloCodigo));
       yTexto += altoLinea(estiloCodigo);
     }
 
@@ -513,7 +598,7 @@ function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
           doc,
           linea,
           OBSERVACION_RENGLON,
-          COLUMNAS[0],
+          IZQUIERDA_CODIGO,
           yTexto + baseDeLinea(OBSERVACION_RENGLON),
         );
         yTexto += altoLinea(OBSERVACION_RENGLON);
@@ -522,7 +607,7 @@ function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
 
     let yDescripcion = y + aMm(12);
     for (const linea of lineasDescripcion) {
-      escribir(doc, linea, CELDA, COLUMNAS[1], yDescripcion + baseDeLinea(CELDA));
+      escribir(doc, linea, CELDA, COLUMNAS[2], yDescripcion + baseDeLinea(CELDA));
       yDescripcion += altoLinea(CELDA);
     }
 
@@ -536,7 +621,7 @@ function dibujar(doc: JsPDF, datos: DatosPdf, imagenLogo: Uint8Array): void {
     ];
 
     columnasNumericas.forEach((trozos, indice) => {
-      escribirCorrida(doc, trozos, COLUMNAS[indice + 3], baseNumeros, 'derecha');
+      escribirCorrida(doc, trozos, COLUMNAS[indice + 4], baseNumeros, 'derecha');
     });
 
     y += altoFila;
@@ -687,9 +772,10 @@ export function nombreDeArchivo(
  * o para descargar. No lo guarda en ningún lado ni lo manda a ninguna parte.
  */
 export async function generarPdfProforma(datos: DatosPdf): Promise<File> {
-  const [{ jsPDF }, imagenLogo] = await Promise.all([
+  const [{ jsPDF }, imagenLogo, fotos] = await Promise.all([
     cargarJsPDF(),
     cargarLogo(),
+    cargarFotos(datos.documento),
   ]);
 
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
@@ -702,7 +788,7 @@ export async function generarPdfProforma(datos: DatosPdf): Promise<File> {
     author: datos.empresa.razonSocial,
   });
 
-  dibujar(doc, datos, imagenLogo);
+  dibujar(doc, datos, imagenLogo, fotos);
 
   return new File([doc.output('blob')], nombre, { type: 'application/pdf' });
 }
