@@ -9,7 +9,7 @@ import { Monto } from '@/components/monto';
 import { compartirArchivo, sePuedeCompartirArchivos } from '@/lib/compartir';
 import { EMPRESAS, empresaPorClave } from '@/lib/empresas';
 import { fechaDeHoy } from '@/lib/fecha';
-import { formatearFecha } from '@/lib/formato';
+import { formatearFecha, formatearMonto } from '@/lib/formato';
 import { generarPdfProforma, precargarPdf } from '@/lib/pdf-proforma';
 import {
   armarDocumentos,
@@ -18,6 +18,7 @@ import {
   fechasDeCliente,
   renglonesDe,
   TODAS_LAS_FECHAS,
+  UNIDADES,
   type CamposDocumento,
   type FiltroFecha,
 } from '@/lib/proformas';
@@ -281,7 +282,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
                     </th>
                     <th className="w-28">Fecha</th>
                     <th>Código</th>
-                    <th className="tabla-num w-24">Metros</th>
+                    <th className="tabla-num w-28">Cantidad</th>
                     <th className="tabla-num w-36">Precio unitario</th>
                     <th className="w-28">Moneda</th>
                     <th className="tabla-num w-40">Total</th>
@@ -314,14 +315,19 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
                             </span>
                           ) : null}
                         </td>
-                        <td className="tabla-num">
-                          <Monto monto={renglon.metros} marca="Sin metros" />
+                        <td className="tabla-num whitespace-nowrap">
+                          {renglon.cantidad === null ? (
+                            <Ausente>Sin cantidad</Ausente>
+                          ) : (
+                            `${formatearMonto(renglon.cantidad)} ${UNIDADES[renglon.unidad].abreviatura}`
+                          )}
                         </td>
-                        <td className="tabla-num">
-                          <Monto
-                            monto={renglon.precioUnitario}
-                            marca="Sin precio"
-                          />
+                        <td className="tabla-num whitespace-nowrap">
+                          {renglon.precioUnitario === null ? (
+                            <Ausente>Sin precio</Ausente>
+                          ) : (
+                            `${formatearMonto(renglon.precioUnitario)} / ${UNIDADES[renglon.unidad].abreviatura}`
+                          )}
                         </td>
                         <td>
                           <Moneda moneda={renglon.moneda} />

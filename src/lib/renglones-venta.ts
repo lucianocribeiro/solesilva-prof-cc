@@ -10,6 +10,19 @@ import { leerTabla, numero, TABLAS, texto, vinculos } from '@/lib/airtable';
 import { indiceDeArticulos } from '@/lib/datos';
 import { urlDeFoto } from '@/lib/fotos';
 
+/**
+ * Unidad en la que se cotiza un renglón. En Ventas la cantidad se carga
+ * siempre en metros; Airtable calcula aparte las yardas.
+ */
+export type Unidad = 'metros' | 'yardas';
+
+/**
+ * Listas de precios cuyo precio está expresado por yarda. Sirve solo para
+ * elegir qué campo de cantidad se lee: la conversión y el total los calcula
+ * Airtable, y acá no se repite ninguna de las dos cosas.
+ */
+const LISTAS_EN_YARDAS = new Set(['CAT. USA', 'CAT. EUR']);
+
 export type RenglonVenta = {
   id: string;
   /** Fecha ISO (AAAA-MM-DD). `null` cuando el campo está vacío. */
@@ -30,10 +43,19 @@ export type RenglonVenta = {
    * dirección, y eso es lo que permite bajar y embeber la foto una sola vez.
    */
   foto: string | null;
-  metros: number | null;
+  /**
+   * Unidad del renglón, definida por su lista de precios. El precio unitario
+   * ya viene expresado en esta unidad.
+   */
+  unidad: Unidad;
+  /**
+   * Cantidad en la unidad del renglón: el campo Metros, o el campo Yardas que
+   * calcula Airtable. La app no convierte.
+   */
+  cantidad: number | null;
   precioUnitario: number | null;
   moneda: string | null;
-  /** Metros por precio unitario, tal como lo calcula Airtable. */
+  /** Cantidad por precio unitario, tal como lo calcula Airtable. */
   total: number | null;
   observaciones?: string;
 };
@@ -65,6 +87,10 @@ export async function cargarRenglonesVenta(): Promise<RenglonVenta[]> {
 
     const observaciones = texto(venta, 'Observaciones');
 
+    const lista = texto(venta, 'Lista de Precios');
+    const unidad: Unidad =
+      lista !== null && LISTAS_EN_YARDAS.has(lista) ? 'yardas' : 'metros';
+
     renglones.push({
       id: venta.id,
       fecha: texto(venta, 'Fecha'),
@@ -72,7 +98,8 @@ export async function cargarRenglonesVenta(): Promise<RenglonVenta[]> {
       codigo: articulo?.codigo ?? null,
       descripcion: articulo?.descripcion ?? null,
       foto: idArticulo && articulo?.tieneFoto ? urlDeFoto(idArticulo) : null,
-      metros: numero(venta, 'Metros'),
+      unidad,
+      cantidad: numero(venta, unidad === 'yardas' ? 'Yardas' : 'Metros'),
       precioUnitario: numero(venta, 'Precio unitario (fijado)'),
       // Campo calculado en Airtable: se toma tal cual viene.
       moneda: texto(venta, 'Moneda Venta'),

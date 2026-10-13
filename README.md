@@ -101,7 +101,7 @@ encabezado fuerza la relectura sin esperar ese plazo.
 
 La app es un espejo de la base: no valida, no corrige, no completa y no
 convierte. Un campo vacío en Airtable se muestra con una marca (*Sin fecha*,
-*Sin moneda*, *Sin precio*, *Sin metros*, *Sin artículo*), nunca como un cero.
+*Sin moneda*, *Sin precio*, *Sin metros*, *Sin cantidad*, *Sin artículo*), nunca como un cero.
 Los subtotales los calcula la app desde los movimientos, separados por moneda;
 los campos calculados de Airtable que consolidan todo a dólares no se usan.
 
@@ -166,6 +166,23 @@ porque el paquete `xlsx` de npm quedó viejo. La librería se carga a pedido, so
 al exportar. SheetJS Community Edition no escribe estilos de celda, así que los
 encabezados van sin negrita y sin panel fijo: es cosmético y no cambia los
 datos.
+
+## Metros y yardas
+
+En Ventas la cantidad se carga siempre en metros, y Airtable calcula aparte el
+campo `Yardas`. La unidad de cada renglón de la proforma la define su lista de
+precios: con **CAT. USA** o **CAT. EUR** el precio está por yarda y la cantidad
+se lee del campo `Yardas`; con cualquier otra lista, del campo `Metros`. No hay
+selector de unidad y no depende de la empresa emisora.
+
+La app no convierte ni recalcula: el factor de conversión y el total del
+renglón (`Total Venta`) viven en Airtable. Lo único que hay en el código es qué
+listas van en yardas, en `src/lib/renglones-venta.ts`, para elegir qué campo
+leer.
+
+Como un mismo documento puede mezclar las dos unidades, cada cantidad y cada
+precio unitario llevan su abreviatura (*m* o *yd*), y el pie muestra una línea
+por cada unidad presente. Metros y yardas nunca se suman entre sí.
 
 ## Empresas emisoras
 

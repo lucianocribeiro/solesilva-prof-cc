@@ -9,7 +9,7 @@
 
 import { compararFechas } from '@/lib/fecha';
 import { claveMoneda, compararMonedas, normalizarMoneda, redondear } from '@/lib/moneda';
-import type { RenglonVenta } from '@/lib/renglones-venta';
+import type { RenglonVenta, Unidad } from '@/lib/renglones-venta';
 
 /**
  * Filtro de fecha de la pantalla. La fecha es opcional:
@@ -46,20 +46,38 @@ export const LADO_FOTO = 56;
 
 /**
  * Ancho de cada columna del detalle, como fracción del ancho de la tabla: foto,
- * código, descripción, metros, precio unitario y total. La pantalla, la
+ * código, descripción, cantidad, precio unitario y total. La pantalla, la
  * impresión y el PDF usan estas mismas proporciones.
  *
  * La de la foto es apenas más ancha que la imagen: el aire hasta el código lo
- * pone la separación entre columnas.
+ * pone la separación entre columnas. Cantidad y precio unitario llevan la
+ * unidad al lado ("12,50 yd", "8,00 USD / yd"), y por eso son más anchas que
+ * un número solo.
  */
-export const FRACCIONES_COLUMNA = [0.09, 0.2, 0.2, 0.13, 0.19, 0.19];
+export const FRACCIONES_COLUMNA = [0.09, 0.17, 0.18, 0.15, 0.22, 0.19];
+
+/**
+ * Cómo se nombra cada unidad. La abreviatura acompaña a cada cantidad y a cada
+ * precio unitario, porque un mismo documento puede mezclar las dos.
+ */
+export const UNIDADES: Record<Unidad, { nombre: string; abreviatura: string }> = {
+  metros: { nombre: 'Metros', abreviatura: 'm' },
+  yardas: { nombre: 'Yardas', abreviatura: 'yd' },
+};
+
+/** Orden fijo de las líneas del pie: primero metros, después yardas. */
+const ORDEN_UNIDADES: Unidad[] = ['metros', 'yardas'];
+
+/** Total de cantidad de una unidad. Metros y yardas nunca se suman entre sí. */
+export type TotalDeUnidad = { unidad: Unidad; cantidad: number };
 
 export type DocumentoProforma = {
   moneda: string | null;
   /** Clave estable para el estado de la pantalla y para las keys de React. */
   clave: string;
   renglones: RenglonVenta[];
-  totalMetros: number;
+  /** Una entrada por cada unidad presente entre los renglones. */
+  totalesPorUnidad: TotalDeUnidad[];
   cantidadRenglones: number;
   total: number;
   /** Valor inicial del número, editable en pantalla. */
@@ -190,6 +208,23 @@ function numeroSugeridoDe(
 }
 
 /**
+ * Una línea por cada unidad que aparece en los renglones. Cada unidad suma
+ * solo sus propias cantidades: no hay conversión entre metros y yardas.
+ */
+function totalesPorUnidad(renglones: RenglonVenta[]): TotalDeUnidad[] {
+  return ORDEN_UNIDADES.filter((unidad) =>
+    renglones.some((renglon) => renglon.unidad === unidad),
+  ).map((unidad) => ({
+    unidad,
+    cantidad: redondear(
+      renglones
+        .filter((renglon) => renglon.unidad === unidad)
+        .reduce((suma, renglon) => suma + (renglon.cantidad ?? 0), 0),
+    ),
+  }));
+}
+
+/**
  * Un documento por cada moneda presente entre los renglones tildados.
  *
  * El cliente y la fecha de emisión no cambian nada del contenido: entran solo
@@ -218,11 +253,9 @@ export function armarDocumentos(
       moneda,
       clave: claveMoneda(moneda),
       renglones,
-      // Un renglón sin metros o sin total no aporta nada a la suma: no hay
+      // Un renglón sin cantidad o sin total no aporta nada a la suma: no hay
       // nada que sumar. Igual se cuenta como renglón y se muestra en el detalle.
-      totalMetros: redondear(
-        renglones.reduce((suma, renglon) => suma + (renglon.metros ?? 0), 0),
-      ),
+      totalesPorUnidad: totalesPorUnidad(renglones),
       cantidadRenglones: renglones.length,
       total: redondear(
         renglones.reduce((suma, renglon) => suma + (renglon.total ?? 0), 0),

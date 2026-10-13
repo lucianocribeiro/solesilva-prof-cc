@@ -5,13 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Ausente } from '@/components/ausente';
 import { Moneda } from '@/components/moneda';
-import { Monto } from '@/components/monto';
 import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
 import { fechaDeHoy } from '@/lib/fecha';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
 import {
   FRACCIONES_COLUMNA,
   LADO_FOTO,
+  UNIDADES,
   type CamposDocumento,
   type DocumentoProforma,
 } from '@/lib/proformas';
@@ -179,7 +179,7 @@ export function Documento({
             </th>
             <th>Código</th>
             <th>Descripción</th>
-            <th className="doc-num">Metros</th>
+            <th className="doc-num">Cantidad</th>
             <th className="doc-num">Precio unitario</th>
             <th className="doc-num">Total</th>
           </tr>
@@ -207,8 +207,17 @@ export function Documento({
                   cargada, la celda va vacía: es una proforma que ve el
                   cliente y no se inventa un texto que la base no tiene. */}
               <td className="doc-descripcion">{renglon.descripcion}</td>
-              <td className="doc-num" data-rotulo="Metros">
-                <Monto monto={renglon.metros} marca="Sin metros" />
+              {/* Cada renglón lleva su unidad: el mismo documento puede tener
+                  renglones en metros y en yardas. */}
+              <td className="doc-num" data-rotulo="Cantidad">
+                {renglon.cantidad === null ? (
+                  <Ausente>Sin cantidad</Ausente>
+                ) : (
+                  <span>
+                    {formatearMonto(renglon.cantidad)}{' '}
+                    {UNIDADES[renglon.unidad].abreviatura}
+                  </span>
+                )}
               </td>
               <td className="doc-num" data-rotulo="Precio unitario">
                 {renglon.precioUnitario === null ? (
@@ -217,6 +226,8 @@ export function Documento({
                   <span>
                     {formatearMonto(renglon.precioUnitario)}{' '}
                     <Moneda moneda={documento.moneda} />
+                    {' / '}
+                    {UNIDADES[renglon.unidad].abreviatura}
                   </span>
                 )}
               </td>
@@ -236,12 +247,14 @@ export function Documento({
       </table>
 
       <section className="doc-totales">
-        <div className="doc-total">
-          <span className="doc-total-rotulo">Metros</span>
-          <span className="doc-total-valor">
-            {formatearMonto(documento.totalMetros)}
-          </span>
-        </div>
+        {documento.totalesPorUnidad.map(({ unidad, cantidad }) => (
+          <div key={unidad} className="doc-total">
+            <span className="doc-total-rotulo">{UNIDADES[unidad].nombre}</span>
+            <span className="doc-total-valor">
+              {formatearMonto(cantidad)} {UNIDADES[unidad].abreviatura}
+            </span>
+          </div>
+        ))}
         <div className="doc-total">
           <span className="doc-total-rotulo">Renglones</span>
           <span className="doc-total-valor">{documento.cantidadRenglones}</span>

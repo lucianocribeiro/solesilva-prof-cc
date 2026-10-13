@@ -25,6 +25,7 @@ import { formatearFecha, formatearMonto } from '@/lib/formato';
 import {
   FRACCIONES_COLUMNA,
   LADO_FOTO,
+  UNIDADES,
   type CamposDocumento,
   type DocumentoProforma,
 } from '@/lib/proformas';
@@ -500,7 +501,7 @@ function dibujar(
 
   y += aMm(36);
 
-  const cabecerasNumericas = ['METROS', 'PRECIO UNITARIO', 'TOTAL'];
+  const cabecerasNumericas = ['CANTIDAD', 'PRECIO UNITARIO', 'TOTAL'];
 
   const dibujarCabecera = (): void => {
     // La columna de la foto no lleva título, igual que en pantalla.
@@ -611,12 +612,27 @@ function dibujar(
       yDescripcion += altoLinea(CELDA);
     }
 
+    // Cantidad y precio llevan la unidad del renglón, igual que en pantalla.
+    const abreviatura = UNIDADES[renglon.unidad].abreviatura;
+    const precio = trozosDeMonto(
+      renglon.precioUnitario,
+      'Sin precio',
+      documento.moneda,
+    );
+
     const baseNumeros = y + aMm(12) + baseDeLinea(CELDA);
     const columnasNumericas: Trozo[][] = [
-      renglon.metros === null
-        ? [{ texto: 'Sin metros', estilo: AUSENTE }]
-        : [{ texto: formatearMonto(renglon.metros), estilo: CELDA }],
-      trozosDeMonto(renglon.precioUnitario, 'Sin precio', documento.moneda),
+      renglon.cantidad === null
+        ? [{ texto: 'Sin cantidad', estilo: AUSENTE }]
+        : [
+            {
+              texto: `${formatearMonto(renglon.cantidad)} ${abreviatura}`,
+              estilo: CELDA,
+            },
+          ],
+      renglon.precioUnitario === null
+        ? precio
+        : [...precio, { texto: ` / ${abreviatura}`, estilo: CELDA }],
       trozosDeMonto(renglon.total, 'Sin total', documento.moneda),
     ];
 
@@ -634,19 +650,24 @@ function dibujar(
 
   const izquierdaTotales = DERECHA - ANCHO_TOTALES;
 
+  const filasDeTotal: [string, string][] = [
+    ...documento.totalesPorUnidad.map(
+      ({ unidad, cantidad }): [string, string] => [
+        UNIDADES[unidad].nombre,
+        `${formatearMonto(cantidad)} ${UNIDADES[unidad].abreviatura}`,
+      ],
+    ),
+    ['Renglones', String(documento.cantidadRenglones)],
+  ];
+
   const altoTotales =
-    2 * (aMm(12) + altoLinea(TOTAL_VALOR)) +
+    filasDeTotal.length * (aMm(12) + altoLinea(TOTAL_VALOR)) +
     aMm(10) +
     aMm(14) +
     altoLinea(TOTAL_FINAL_VALOR);
 
   y += aMm(32);
   if (!entra(altoTotales)) nuevaPagina();
-
-  const filasDeTotal: [string, string][] = [
-    ['Metros', formatearMonto(documento.totalMetros)],
-    ['Renglones', String(documento.cantidadRenglones)],
-  ];
 
   for (const [rotulo, valor] of filasDeTotal) {
     y += aMm(6);
