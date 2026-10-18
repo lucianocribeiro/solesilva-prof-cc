@@ -17,13 +17,24 @@
  * - Un equivalente de cero no es una ausencia: es un cero real y entra al
  *   saldo. Lo que distingue un caso del otro es que el dato esté o no esté,
  *   nunca su valor.
+ * - Los gastos de envío de una venta son un movimiento aparte, ya en dólares.
+ *   Entran al saldo siempre, aunque su venta haya quedado sin conversión.
+ * - El descuento ya está restado dentro del total de la venta. Se muestra
+ *   como nota y no toca el saldo: restarlo de nuevo lo contaría dos veces.
  */
 
 import type { DetalleVenta, Movimiento, SaldoInicial } from '@/lib/datos';
 import { compararFechas } from '@/lib/fecha';
 import { normalizarMoneda, redondear } from '@/lib/moneda';
 
-export type TipoMovimiento = 'venta' | 'cobranza';
+export type TipoMovimiento = 'venta' | 'gastos' | 'cobranza';
+
+/** Cómo se nombra cada tipo, igual en pantalla y en el Excel. */
+export const ETIQUETA_TIPO: Record<TipoMovimiento, string> = {
+  venta: 'Venta',
+  gastos: 'Gastos de envío / Otros',
+  cobranza: 'Cobranza',
+};
 
 export type MovimientoCliente = {
   id: string;
@@ -48,6 +59,11 @@ export type MovimientoCliente = {
   aporteUSD: number | null;
   /** Artículo, precio unitario y metros. Solo lo traen las ventas. */
   detalle?: DetalleVenta;
+  /**
+   * Descuento que la base ya restó del total de la venta. Solo informativo:
+   * no participa de ningún total. Solo lo traen las ventas que lo tienen.
+   */
+  descuento?: number;
   /** La cobranza está vinculada a más de un cliente en la base. */
   compartidoConOtrosClientes?: boolean;
 };
@@ -56,8 +72,9 @@ export type MovimientoCliente = {
 export type Subtotal = {
   saldoInicial: number;
   ventas: number;
+  gastosEnvio: number;
   cobranzas: number;
-  /** saldo inicial + ventas − cobranzas. */
+  /** saldo inicial + ventas + gastos de envío − cobranzas. */
   total: number;
 };
 
@@ -95,6 +112,7 @@ function armarBloque(
   const saldoInicial = saldos.reduce((suma, saldo) => suma + saldo.monto, 0);
 
   let totalVentas = 0;
+  let totalGastosEnvio = 0;
   let totalCobranzas = 0;
   let sinConversion = 0;
 
@@ -116,7 +134,27 @@ function armarBloque(
       aporte: venta.monto,
       aporteUSD: venta.montoUSD,
       ...(venta.detalle ? { detalle: venta.detalle } : {}),
+      ...(venta.descuento != null ? { descuento: venta.descuento } : {}),
     });
+
+    // Los gastos van en una línea propia, justo después de su venta: el
+    // ordenamiento por fecha es estable y las deja juntas. Vacío no genera
+    // línea; un cero cargado sí. El campo ya está en dólares, así que no
+    // depende de que la venta tenga conversión.
+    const gastos = venta.gastosEnvioUSD;
+    if (gastos != null) {
+      totalGastosEnvio += gastos;
+      movimientos.push({
+        id: `gastos-${indice}`,
+        fecha: venta.fecha,
+        tipo: 'gastos',
+        comprobante: venta.comprobante,
+        monto: gastos,
+        moneda: 'USD',
+        aporte: gastos,
+        aporteUSD: gastos,
+      });
+    }
   });
 
   cobranzas.forEach((cobranza, indice) => {
@@ -145,8 +183,11 @@ function armarBloque(
     subtotal: {
       saldoInicial: redondear(saldoInicial),
       ventas: redondear(totalVentas),
+      gastosEnvio: redondear(totalGastosEnvio),
       cobranzas: redondear(totalCobranzas),
-      total: redondear(saldoInicial + totalVentas - totalCobranzas),
+      total: redondear(
+        saldoInicial + totalVentas + totalGastosEnvio - totalCobranzas,
+      ),
     },
     sinConversion,
   };

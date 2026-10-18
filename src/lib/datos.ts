@@ -79,6 +79,20 @@ export type Movimiento = {
   /** Artículo, precio unitario y metros. Solo lo traen las ventas. */
   detalle?: DetalleVenta;
   /**
+   * "Gastos de envío / Otros" de la venta. Es un campo en dólares, cargado a
+   * mano, que no participa de ninguna fórmula de la base: no está dentro de
+   * "Total Venta" ni de "Venta en USD". Se lee tal cual y nunca se convierte,
+   * aunque la venta esté en otra moneda. `null` cuando está vacío; un cero
+   * cargado es un cero real. Solo lo traen las ventas.
+   */
+  gastosEnvioUSD?: number | null;
+  /**
+   * "Descuento" de la venta. Ya viene restado dentro de "Total Venta" y de
+   * "Venta en USD", así que es solo informativo: no se suma ni se resta en
+   * ninguna parte. `null` cuando está vacío. Solo lo traen las ventas.
+   */
+  descuento?: number | null;
+  /**
    * La cobranza está vinculada a más de un cliente en la base. Se muestra
    * entera bajo cada uno, porque repartir el monto sería inventar una división
    * que la base no tiene. La marca avisa que no es un registro duplicado.
@@ -145,6 +159,8 @@ export async function cargarCuentaCorriente(): Promise<DatosCuentaCorriente> {
         precioUnitario: numero(venta, 'Precio unitario (fijado)'),
         metros: numero(venta, 'Metros'),
       },
+      gastosEnvioUSD: numero(venta, 'Gastos de envío / Otros'),
+      descuento: numero(venta, 'Descuento'),
     });
   }
 

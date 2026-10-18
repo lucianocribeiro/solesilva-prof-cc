@@ -2,9 +2,10 @@ import { Ausente } from '@/components/ausente';
 import { Fecha } from '@/components/fecha';
 import { Moneda } from '@/components/moneda';
 import { Monto } from '@/components/monto';
-import type {
-  BloqueCliente as Bloque,
-  MovimientoCliente,
+import {
+  type BloqueCliente as Bloque,
+  ETIQUETA_TIPO,
+  type MovimientoCliente,
 } from '@/lib/cuenta-corriente';
 import { formatearMonto } from '@/lib/formato';
 
@@ -35,8 +36,9 @@ function EquivalenteUSD({ movimiento }: { movimiento: MovimientoCliente }) {
 }
 
 function Fila({ movimiento }: { movimiento: MovimientoCliente }) {
+  // Los gastos de envío suman al saldo, del mismo lado que las ventas.
   const color =
-    movimiento.tipo === 'venta' ? 'monto-positivo' : 'monto-negativo';
+    movimiento.tipo === 'cobranza' ? 'monto-negativo' : 'monto-positivo';
 
   return (
     <tr>
@@ -44,7 +46,7 @@ function Fila({ movimiento }: { movimiento: MovimientoCliente }) {
         <Fecha fecha={movimiento.fecha} />
       </td>
       <td>
-        {movimiento.tipo === 'venta' ? 'Venta' : 'Cobranza'}
+        {ETIQUETA_TIPO[movimiento.tipo]}
         {movimiento.compartidoConOtrosClientes ? (
           <span
             className="ml-2 rounded border border-borde-fuerte px-1.5 py-0.5
@@ -62,6 +64,13 @@ function Fila({ movimiento }: { movimiento: MovimientoCliente }) {
           comprobante del cliente. */}
       <td className={`tabla-num ${color}`}>
         <Monto monto={movimiento.aporte} marca="Sin monto" conSigno />
+        {/* El total ya viene neto del descuento: la nota lo explica y no
+            participa de ninguna cuenta. */}
+        {movimiento.descuento !== undefined ? (
+          <span className="block text-[11px] font-normal text-texto-suave">
+            incluye descuento de {formatearMonto(movimiento.descuento)}
+          </span>
+        ) : null}
       </td>
       <td className="tabla-moneda">
         <Moneda moneda={movimiento.moneda} />

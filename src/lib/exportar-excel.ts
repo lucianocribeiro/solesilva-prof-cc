@@ -11,7 +11,7 @@
  * no existe y un monto de cero son cosas distintas.
  */
 
-import type { BloqueCliente } from '@/lib/cuenta-corriente';
+import { type BloqueCliente, ETIQUETA_TIPO } from '@/lib/cuenta-corriente';
 
 /** Cómo se identifica en el archivo el bloque sin cliente vinculado. */
 const ETIQUETA_SIN_CLIENTE = 'Movimientos sin cliente asignado';
@@ -66,6 +66,7 @@ const ENCABEZADOS_SUBTOTALES = [
   'Cliente',
   'Saldo inicial USD',
   'Ventas USD',
+  'Gastos de envío USD',
   'Cobranzas USD',
   'Saldo USD',
 ];
@@ -73,6 +74,9 @@ const ENCABEZADOS_SUBTOTALES = [
 /**
  * Una fila por cliente. La cuenta corriente es una sola y está en dólares,
  * así que ya no hay fila por combinación de cliente y moneda.
+ *
+ * El descuento no tiene columna acá a propósito: ya está restado dentro de
+ * las ventas, y ponerlo invitaría a restarlo de nuevo.
  */
 function filasDeSubtotales(bloques: BloqueCliente[]): Celda[][] {
   const filas: Celda[][] = [ENCABEZADOS_SUBTOTALES];
@@ -83,6 +87,7 @@ function filasDeSubtotales(bloques: BloqueCliente[]): Celda[][] {
       // Sin saldo inicial cargado la celda queda vacía: no es un cero.
       bloque.saldoInicial,
       bloque.subtotal.ventas,
+      bloque.subtotal.gastosEnvio,
       bloque.subtotal.cobranzas,
       bloque.subtotal.total,
     ]);
@@ -104,6 +109,7 @@ const ENCABEZADOS_MOVIMIENTOS = [
   'Moneda',
   'Monto',
   'Equivalente USD',
+  'Descuento',
 ];
 
 /**
@@ -119,6 +125,10 @@ const ENCABEZADOS_MOVIMIENTOS = [
  * que trae Airtable. Cuando la base no lo trae, la celda queda vacía: es la
  * misma marca que la pantalla muestra como "sin conversión", y un cero diría
  * otra cosa.
+ *
+ * Descuento solo se completa en las ventas que lo tienen cargado; en el resto
+ * queda vacía, nunca en cero. Es informativa: el total de la venta ya viene
+ * neto y no se resta en ninguna parte.
  */
 function filasDeMovimientos(bloques: BloqueCliente[]): Celda[][] {
   const filas: Celda[][] = [ENCABEZADOS_MOVIMIENTOS];
@@ -130,7 +140,7 @@ function filasDeMovimientos(bloques: BloqueCliente[]): Celda[][] {
       filas.push([
         etiquetaCliente(bloque.cliente),
         aFechaExcel(movimiento.fecha),
-        movimiento.tipo === 'venta' ? 'Venta' : 'Cobranza',
+        ETIQUETA_TIPO[movimiento.tipo],
         movimiento.comprobante,
         detalle?.codigo ?? null,
         detalle?.metros ?? null,
@@ -140,6 +150,7 @@ function filasDeMovimientos(bloques: BloqueCliente[]): Celda[][] {
         // Las cobranzas van en negativo, igual que en pantalla.
         movimiento.aporte,
         movimiento.aporteUSD,
+        movimiento.descuento ?? null,
       ]);
     }
   }
@@ -161,17 +172,17 @@ export async function exportarCuentaCorriente(
     {
       nombre: 'Subtotales',
       filas: filasDeSubtotales(bloques),
-      anchos: [34, 18, 16, 16, 18],
-      // Saldo inicial, ventas, cobranzas y saldo.
-      montos: [1, 2, 3, 4],
+      anchos: [34, 18, 16, 20, 16, 18],
+      // Saldo inicial, ventas, gastos de envío, cobranzas y saldo.
+      montos: [1, 2, 3, 4, 5],
       fechas: [] as number[],
     },
     {
       nombre: 'Movimientos',
       filas: filasDeMovimientos(bloques),
-      anchos: [34, 13, 12, 16, 20, 12, 40, 16, 14, 18, 18],
-      // Metros, precio unitario, monto y equivalente en dólares.
-      montos: [5, 7, 9, 10],
+      anchos: [34, 13, 24, 16, 20, 12, 40, 16, 14, 18, 18, 14],
+      // Metros, precio unitario, monto, equivalente en dólares y descuento.
+      montos: [5, 7, 9, 10, 11],
       fechas: [1],
     },
   ];
