@@ -71,6 +71,16 @@ function Fila({ movimiento }: { movimiento: MovimientoCliente }) {
             incluye descuento de {formatearMonto(movimiento.descuento)}
           </span>
         ) : null}
+        {/* La cobranza ya viene neta de gastos: la nota muestra de dónde sale
+            y no participa de ninguna cuenta. */}
+        {movimiento.gastosCobranza ? (
+          <span className="block text-[11px] font-normal text-texto-suave">
+            {movimiento.gastosCobranza.bruto !== null
+              ? `bruto ${formatearMonto(movimiento.gastosCobranza.bruto)}, `
+              : ''}
+            gastos {formatearMonto(movimiento.gastosCobranza.gastos)}
+          </span>
+        ) : null}
       </td>
       <td className="tabla-moneda">
         <Moneda moneda={movimiento.moneda} />

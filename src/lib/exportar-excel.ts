@@ -110,6 +110,7 @@ const ENCABEZADOS_MOVIMIENTOS = [
   'Monto',
   'Equivalente USD',
   'Descuento',
+  'Gastos asociados',
 ];
 
 /**
@@ -129,6 +130,10 @@ const ENCABEZADOS_MOVIMIENTOS = [
  * Descuento solo se completa en las ventas que lo tienen cargado; en el resto
  * queda vacía, nunca en cero. Es informativa: el total de la venta ya viene
  * neto y no se resta en ninguna parte.
+ *
+ * En las cobranzas, Monto y Equivalente USD son el neto. Gastos asociados se
+ * completa solo en las cobranzas que los tienen cargados; en el resto queda
+ * vacía, nunca en cero. Es informativa, igual que el descuento.
  */
 function filasDeMovimientos(bloques: BloqueCliente[]): Celda[][] {
   const filas: Celda[][] = [ENCABEZADOS_MOVIMIENTOS];
@@ -151,6 +156,7 @@ function filasDeMovimientos(bloques: BloqueCliente[]): Celda[][] {
         movimiento.aporte,
         movimiento.aporteUSD,
         movimiento.descuento ?? null,
+        movimiento.gastosCobranza?.gastos ?? null,
       ]);
     }
   }
@@ -180,9 +186,10 @@ export async function exportarCuentaCorriente(
     {
       nombre: 'Movimientos',
       filas: filasDeMovimientos(bloques),
-      anchos: [34, 13, 24, 16, 20, 12, 40, 16, 14, 18, 18, 14],
-      // Metros, precio unitario, monto, equivalente en dólares y descuento.
-      montos: [5, 7, 9, 10, 11],
+      anchos: [34, 13, 24, 16, 20, 12, 40, 16, 14, 18, 18, 14, 18],
+      // Metros, precio unitario, monto, equivalente en dólares, descuento y
+      // gastos asociados.
+      montos: [5, 7, 9, 10, 11, 12],
       fechas: [1],
     },
   ];

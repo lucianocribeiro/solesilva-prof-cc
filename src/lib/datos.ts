@@ -11,6 +11,7 @@ import {
   ETIQUETA_CACHE,
   leerTabla,
   numero,
+  type Registro,
   TABLAS,
   texto,
   vinculos,
@@ -68,7 +69,7 @@ export type Movimiento = {
   moneda: string | null;
   /**
    * El equivalente en dólares que ya trae calculado la base, con el tipo de
-   * cambio cargado en la operación: "Venta en USD" y "Bruto cobrado USD".
+   * cambio cargado en la operación: "Venta en USD" y "Neto cobrado en USD".
    * La app no convierte: lee este campo y nada más.
    *
    * `null` cuando la base no pudo convertir —falta el tipo de cambio, o la
@@ -92,6 +93,13 @@ export type Movimiento = {
    * ninguna parte. `null` cuando está vacío. Solo lo traen las ventas.
    */
   descuento?: number | null;
+  /**
+   * "Monto Bruto" y "Gastos asociados" de la cobranza, en su moneda. El monto
+   * de la cobranza ya es el neto ("Neto cobrado"), así que esto es solo
+   * informativo: no se suma ni se resta en ninguna parte. Solo lo traen las
+   * cobranzas con gastos cargados.
+   */
+  gastosCobranza?: { bruto: number | null; gastos: number };
   /**
    * La cobranza está vinculada a más de un cliente en la base. Se muestra
    * entera bajo cada uno, porque repartir el monto sería inventar una división
@@ -181,16 +189,32 @@ export async function cargarCuentaCorriente(): Promise<DatosCuentaCorriente> {
         fecha: texto(cobranza, 'Fecha'),
         cliente,
         comprobante: texto(cobranza, 'Comprobante'),
-        // Solo el bruto: nada de gastos ni de neto.
-        monto: numero(cobranza, 'Monto Bruto'),
+        // El neto en las dos columnas: así la fila cierra contra el tipo de
+        // cambio. La resta de los gastos y la conversión ya vienen de la base.
+        monto: numero(cobranza, 'Neto cobrado'),
         moneda: texto(cobranza, 'Moneda'),
-        montoUSD: numero(cobranza, 'Bruto cobrado USD'),
+        montoUSD: numero(cobranza, 'Neto cobrado en USD'),
+        ...gastosDeCobranza(cobranza),
         ...(compartida ? { compartidoConOtrosClientes: true } : {}),
       });
     }
   }
 
   return { padron, saldosIniciales, ventas, cobranzas };
+}
+
+/**
+ * Bruto y gastos de la cobranza, para la nota. Sin "Gastos asociados" cargado
+ * no hay nota: el neto y el bruto coinciden.
+ */
+function gastosDeCobranza(
+  cobranza: Registro,
+): Pick<Movimiento, 'gastosCobranza'> {
+  const gastos = numero(cobranza, 'Gastos asociados');
+  if (gastos === null) return {};
+  return {
+    gastosCobranza: { bruto: numero(cobranza, 'Monto Bruto'), gastos },
+  };
 }
 
 export type Articulo = {

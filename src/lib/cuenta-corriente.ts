@@ -21,6 +21,10 @@
  *   Entran al saldo siempre, aunque su venta haya quedado sin conversión.
  * - El descuento ya está restado dentro del total de la venta. Se muestra
  *   como nota y no toca el saldo: restarlo de nuevo lo contaría dos veces.
+ * - Las cobranzas entran por su neto: lo que recibió Sole Silva después de los
+ *   gastos bancarios o de plataforma. La base ya trae el neto y su equivalente
+ *   en dólares; el bruto y los gastos se muestran como nota, igual que el
+ *   descuento, y no tocan el saldo.
  */
 
 import type { DetalleVenta, Movimiento, SaldoInicial } from '@/lib/datos';
@@ -64,6 +68,11 @@ export type MovimientoCliente = {
    * no participa de ningún total. Solo lo traen las ventas que lo tienen.
    */
   descuento?: number;
+  /**
+   * Bruto y gastos de una cobranza, en su moneda. El monto ya es el neto, así
+   * que es solo informativo. Solo lo traen las cobranzas con gastos cargados.
+   */
+  gastosCobranza?: { bruto: number | null; gastos: number };
   /** La cobranza está vinculada a más de un cliente en la base. */
   compartidoConOtrosClientes?: boolean;
 };
@@ -170,6 +179,9 @@ function armarBloque(
       moneda: normalizarMoneda(cobranza.moneda),
       aporte: cobranza.monto === null ? null : -cobranza.monto,
       aporteUSD: cobranza.montoUSD === null ? null : -cobranza.montoUSD,
+      ...(cobranza.gastosCobranza
+        ? { gastosCobranza: cobranza.gastosCobranza }
+        : {}),
       ...(cobranza.compartidoConOtrosClientes
         ? { compartidoConOtrosClientes: true }
         : {}),
