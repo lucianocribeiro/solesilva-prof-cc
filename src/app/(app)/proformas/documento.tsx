@@ -5,14 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Ausente } from '@/components/ausente';
 import { Moneda } from '@/components/moneda';
-import {
-  descripcionPara,
-  LOGO,
-  renglonesEmisor,
-  type Empresa,
-} from '@/lib/empresas';
+import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
 import { fechaDeHoy } from '@/lib/fecha';
-import { formatearFecha, formatearMonto } from '@/lib/formato';
 import {
   FRACCIONES_COLUMNA,
   LADO_FOTO,
@@ -20,6 +14,12 @@ import {
   type CamposDocumento,
   type DocumentoProforma,
 } from '@/lib/proformas';
+import {
+  descripcionEn,
+  formatearFechaDocumento,
+  formatearNumero,
+  textosDe,
+} from '@/lib/textos-proforma';
 
 /**
  * Textarea que crece con su contenido, para que en papel no quede texto
@@ -75,14 +75,14 @@ function AreaEditable({
  * Si la foto no se puede traer, la celda queda vacía, igual que cuando el
  * artículo no tiene foto. No se muestra ningún ícono ni imagen de reemplazo.
  */
-function FotoArticulo({ src, codigo }: { src: string; codigo: string | null }) {
+function FotoArticulo({ src, alt }: { src: string; alt: string }) {
   const [fallo, setFallo] = useState(false);
   if (fallo) return null;
 
   return (
     <Image
       src={src}
-      alt={codigo ? `Tela ${codigo}` : 'Tela'}
+      alt={alt}
       width={LADO_FOTO}
       height={LADO_FOTO}
       className="doc-foto-imagen"
@@ -108,6 +108,13 @@ export function Documento({
 }) {
   const [nombreEmisor, ...datosEmisor] = renglonesEmisor(empresa);
 
+  // Todo texto fijo y todo formato del documento sale del idioma de la
+  // empresa emisora. Acá no se escribe ninguna etiqueta a mano.
+  const { idioma } = empresa;
+  const t = textosDe(idioma);
+  const numero = (valor: number) => formatearNumero(idioma, valor);
+  const moneda = <Moneda moneda={documento.moneda} marca={t.sinMoneda} />;
+
   return (
     <article className="hoja">
       <header className="doc-encabezado">
@@ -124,7 +131,7 @@ export function Documento({
             unoptimized
             priority
           />
-          <h2 className="doc-titulo">{empresa.titulo}</h2>
+          <h2 className="doc-titulo">{t.titulo}</h2>
           <address className="doc-emisor">
             <span className="doc-emisor-nombre">{nombreEmisor}</span>
             {datosEmisor.map((dato) => (
@@ -136,7 +143,7 @@ export function Documento({
         <dl className="doc-meta">
           <div>
             <dt className="doc-rotulo">
-              <label htmlFor={`numero-${documento.clave}`}>N.º de proforma</label>
+              <label htmlFor={`numero-${documento.clave}`}>{t.numero}</label>
             </dt>
             <dd>
               <input
@@ -149,14 +156,12 @@ export function Documento({
             </dd>
           </div>
           <div>
-            <dt className="doc-rotulo">Fecha de emisión</dt>
-            <dd>{formatearFecha(fechaDeHoy())}</dd>
+            <dt className="doc-rotulo">{t.fechaEmision}</dt>
+            <dd>{formatearFechaDocumento(idioma, fechaDeHoy())}</dd>
           </div>
           <div>
-            <dt className="doc-rotulo">Moneda</dt>
-            <dd>
-              <Moneda moneda={documento.moneda} />
-            </dd>
+            <dt className="doc-rotulo">{t.moneda}</dt>
+            <dd>{moneda}</dd>
           </div>
         </dl>
       </header>
@@ -164,7 +169,7 @@ export function Documento({
       <hr className="doc-regla" />
 
       <section className="doc-cliente">
-        <span className="doc-rotulo">Cliente</span>
+        <span className="doc-rotulo">{t.cliente}</span>
         <span className="doc-cliente-nombre">{cliente}</span>
       </section>
 
@@ -180,13 +185,13 @@ export function Documento({
         <thead>
           <tr>
             <th>
-              <span className="sr-only">Foto</span>
+              <span className="sr-only">{t.foto}</span>
             </th>
-            <th>Código</th>
-            <th>Descripción</th>
-            <th className="doc-num">Cantidad</th>
-            <th className="doc-num">Precio unitario</th>
-            <th className="doc-num">Total</th>
+            <th>{t.codigo}</th>
+            <th>{t.descripcion}</th>
+            <th className="doc-num">{t.cantidad}</th>
+            <th className="doc-num">{t.precioUnitario}</th>
+            <th className="doc-num">{t.total}</th>
           </tr>
         </thead>
         <tbody>
@@ -197,12 +202,15 @@ export function Documento({
                   plegar con :empty. */}
               <td className="doc-foto">
                 {renglon.foto ? (
-                  <FotoArticulo src={renglon.foto} codigo={renglon.codigo} />
+                  <FotoArticulo
+                    src={renglon.foto}
+                    alt={t.altFoto(renglon.codigo)}
+                  />
                 ) : null}
               </td>
               <td>
                 <span className="block font-medium">
-                  {renglon.codigo ?? <Ausente>Sin artículo</Ausente>}
+                  {renglon.codigo ?? <Ausente>{t.sinArticulo}</Ausente>}
                 </span>
                 {renglon.observaciones ? (
                   <span className="doc-obs">{renglon.observaciones}</span>
@@ -212,39 +220,37 @@ export function Documento({
                   cargada, la celda va vacía: es una proforma que ve el
                   cliente y no se inventa un texto que la base no tiene. */}
               <td className="doc-descripcion">
-                {descripcionPara(empresa, renglon)}
+                {descripcionEn(idioma, renglon)}
               </td>
               {/* Cada renglón lleva su unidad: el mismo documento puede tener
                   renglones en metros y en yardas. */}
-              <td className="doc-num" data-rotulo="Cantidad">
+              <td className="doc-num" data-rotulo={t.cantidad}>
                 {renglon.cantidad === null ? (
-                  <Ausente>Sin cantidad</Ausente>
+                  <Ausente>{t.sinCantidad}</Ausente>
                 ) : (
                   <span>
-                    {formatearMonto(renglon.cantidad)}{' '}
+                    {numero(renglon.cantidad)}{' '}
                     {UNIDADES[renglon.unidad].abreviatura}
                   </span>
                 )}
               </td>
-              <td className="doc-num" data-rotulo="Precio unitario">
+              <td className="doc-num" data-rotulo={t.precioUnitario}>
                 {renglon.precioUnitario === null ? (
-                  <Ausente>Sin precio</Ausente>
+                  <Ausente>{t.sinPrecio}</Ausente>
                 ) : (
                   <span>
-                    {formatearMonto(renglon.precioUnitario)}{' '}
-                    <Moneda moneda={documento.moneda} />
+                    {numero(renglon.precioUnitario)} {moneda}
                     {' / '}
                     {UNIDADES[renglon.unidad].abreviatura}
                   </span>
                 )}
               </td>
-              <td className="doc-num" data-rotulo="Total">
+              <td className="doc-num" data-rotulo={t.total}>
                 {renglon.total === null ? (
-                  <Ausente>Sin total</Ausente>
+                  <Ausente>{t.sinTotal}</Ausente>
                 ) : (
                   <span>
-                    {formatearMonto(renglon.total)}{' '}
-                    <Moneda moneda={documento.moneda} />
+                    {numero(renglon.total)} {moneda}
                   </span>
                 )}
               </td>
@@ -256,23 +262,21 @@ export function Documento({
       <section className="doc-totales">
         {documento.totalesPorUnidad.map(({ unidad, cantidad }) => (
           <div key={unidad} className="doc-total">
-            <span className="doc-total-rotulo">{UNIDADES[unidad].nombre}</span>
+            <span className="doc-total-rotulo">{t.unidades[unidad]}</span>
             <span className="doc-total-valor">
-              {formatearMonto(cantidad)} {UNIDADES[unidad].abreviatura}
+              {numero(cantidad)} {UNIDADES[unidad].abreviatura}
             </span>
           </div>
         ))}
         <div className="doc-total">
-          <span className="doc-total-rotulo">Renglones</span>
+          <span className="doc-total-rotulo">{t.renglones}</span>
           <span className="doc-total-valor">{documento.cantidadRenglones}</span>
         </div>
         <div className="doc-total-final">
-          <span className="doc-total-final-rotulo">Total</span>
+          <span className="doc-total-final-rotulo">{t.total}</span>
           <span className="doc-total-final-valor">
-            {formatearMonto(documento.total)}{' '}
-            <span className="text-sm">
-              <Moneda moneda={documento.moneda} />
-            </span>
+            {numero(documento.total)}{' '}
+            <span className="text-sm">{moneda}</span>
           </span>
         </div>
       </section>
@@ -281,7 +285,7 @@ export function Documento({
         <div>
           <span className="doc-rotulo">
             <label htmlFor={`observaciones-${documento.clave}`}>
-              Observaciones
+              {t.observaciones}
             </label>
           </span>
           <AreaEditable
@@ -293,7 +297,7 @@ export function Documento({
         <div>
           <span className="doc-rotulo">
             <label htmlFor={`condiciones-${documento.clave}`}>
-              Condiciones y validez
+              {t.condiciones}
             </label>
           </span>
           <AreaEditable

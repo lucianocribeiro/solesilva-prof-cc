@@ -7,7 +7,13 @@
  *
  * Cada empresa lleva el rótulo fiscal de su país tal cual —CUIT la argentina,
  * EIN la estadounidense—: no hay un rótulo genérico que sirva para las dos.
+ *
+ * También define el idioma del documento: los textos, el formato de números y
+ * de fecha, y qué descripción del artículo se muestra. Ver
+ * `src/lib/textos-proforma.ts`.
  */
+
+import type { Idioma } from '@/lib/textos-proforma';
 
 export type Empresa = {
   /** Identificador estable: valor del selector y parte del nombre del PDF. */
@@ -20,13 +26,8 @@ export type Empresa = {
     numero: string;
   };
   domicilio: string;
-  /** Título del documento. La proforma estadounidense lo lleva en inglés. */
-  titulo: string;
-  /**
-   * Qué campo de la tabla Artículos llena la columna de descripción:
-   * "Descripción" (castellano) o "Description" (inglés).
-   */
-  idiomaDescripcion: 'es' | 'en';
+  /** Idioma en que sale el documento. La interfaz de la app no cambia. */
+  idioma: Idioma;
 };
 
 export const EMPRESAS: Empresa[] = [
@@ -36,8 +37,7 @@ export const EMPRESAS: Empresa[] = [
     razonSocial: 'María Soledad Silva',
     identificacion: { rotulo: 'CUIT', numero: '27-30077604-9' },
     domicilio: 'Juan Segundo Fernández 930, San Isidro, Buenos Aires',
-    titulo: 'Proforma',
-    idiomaDescripcion: 'es',
+    idioma: 'es',
   },
   {
     clave: 'eeuu',
@@ -45,8 +45,7 @@ export const EMPRESAS: Empresa[] = [
     razonSocial: 'SOLE SILVA TEXTILES LLC',
     identificacion: { rotulo: 'EIN', numero: '88-0742687' },
     domicilio: '1801 NE 123rd Street, Suite 307, North Miami, FL',
-    titulo: 'Proforma Invoice',
-    idiomaDescripcion: 'en',
+    idioma: 'en',
   },
 ];
 
@@ -55,19 +54,6 @@ export const LOGO = '/solesilva.png';
 
 export function empresaPorClave(clave: string): Empresa | null {
   return EMPRESAS.find((empresa) => empresa.clave === clave) ?? null;
-}
-
-/**
- * Descripción del renglón en el idioma de la empresa. Si el artículo no tiene
- * cargado ese campo, la celda va vacía: no se usa el del otro idioma.
- */
-export function descripcionPara(
-  empresa: Empresa,
-  renglon: { descripcion: string | null; descripcionIngles: string | null },
-): string | null {
-  return empresa.idiomaDescripcion === 'en'
-    ? renglon.descripcionIngles
-    : renglon.descripcion;
 }
 
 /**

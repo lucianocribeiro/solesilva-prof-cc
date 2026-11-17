@@ -31,12 +31,6 @@ export type CamposDocumento = {
   condiciones: string;
 };
 
-/** Texto con el que arranca el bloque de condiciones. El usuario puede cambiarlo. */
-export const CONDICIONES_POR_DEFECTO =
-  'Validez de la proforma: 15 días corridos desde la fecha de emisión.\n' +
-  'Los precios están sujetos a confirmación de stock al momento del pedido.\n' +
-  'Forma de pago y plazo de entrega a convenir con la orden de compra.';
-
 /**
  * Lado de la foto del artículo en el documento, en píxeles CSS. El PDF dibuja
  * la misma medida convertida a milímetros, y el servidor la entrega con tres
@@ -57,12 +51,14 @@ export const LADO_FOTO = 56;
 export const FRACCIONES_COLUMNA = [0.09, 0.17, 0.18, 0.15, 0.22, 0.19];
 
 /**
- * Cómo se nombra cada unidad. La abreviatura acompaña a cada cantidad y a cada
- * precio unitario, porque un mismo documento puede mezclar las dos.
+ * Abreviatura de cada unidad. Acompaña a cada cantidad y a cada precio
+ * unitario, porque un mismo documento puede mezclar las dos. Es la misma en
+ * castellano y en inglés; el nombre completo, que sí cambia, está en
+ * `src/lib/textos-proforma.ts`.
  */
-export const UNIDADES: Record<Unidad, { nombre: string; abreviatura: string }> = {
-  metros: { nombre: 'Metros', abreviatura: 'm' },
-  yardas: { nombre: 'Yardas', abreviatura: 'yd' },
+export const UNIDADES: Record<Unidad, { abreviatura: string }> = {
+  metros: { abreviatura: 'm' },
+  yardas: { abreviatura: 'yd' },
 };
 
 /** Orden fijo de las líneas del pie: primero metros, después yardas. */

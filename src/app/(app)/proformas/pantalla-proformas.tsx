@@ -14,7 +14,6 @@ import { generarPdfProforma, precargarPdf } from '@/lib/pdf-proforma';
 import {
   armarDocumentos,
   clientesConVentas,
-  CONDICIONES_POR_DEFECTO,
   fechasDeCliente,
   renglonesDe,
   TODAS_LAS_FECHAS,
@@ -23,6 +22,7 @@ import {
   type FiltroFecha,
 } from '@/lib/proformas';
 import type { RenglonVenta } from '@/lib/renglones-venta';
+import { textosDe } from '@/lib/textos-proforma';
 
 import { Documento } from './documento';
 
@@ -102,11 +102,20 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
     setErrorPdf(null);
   }, [firmaDelDocumento]);
 
+  /**
+   * Lo escrito sobre el documento se guarda por empresa y por moneda. Cada
+   * empresa emite en su idioma, así que al cambiarla el documento arranca con
+   * sus propias condiciones y no arrastra las que se escribieron en el otro.
+   */
+  const claveCampos = (clave: string) => `${claveEmpresa}|${clave}`;
+
   const camposDelDocumento = (clave: string, numeroSugerido: string) =>
-    campos[clave] ?? {
+    campos[claveCampos(clave)] ?? {
       numero: numeroSugerido,
       observaciones: '',
-      condiciones: CONDICIONES_POR_DEFECTO,
+      condiciones: empresa
+        ? textosDe(empresa.idioma).condicionesPorDefecto
+        : '',
     };
 
   function elegirCliente(nuevo: string) {
@@ -139,7 +148,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
     const actuales = camposDelDocumento(documento.clave, documento.numeroSugerido);
     setCampos((previos) => ({
       ...previos,
-      [documento.clave]: { ...actuales, [campo]: valor },
+      [claveCampos(documento.clave)]: { ...actuales, [campo]: valor },
     }));
   }
 
@@ -168,7 +177,7 @@ export function PantallaProformas({ renglones }: { renglones: RenglonVenta[] }) 
 
       const resultado = await compartirArchivo(
         archivo,
-        `Proforma ${datos.numero} — ${cliente}`,
+        `${textosDe(empresa.idioma).titulo} ${datos.numero} — ${cliente}`,
       );
 
       if (resultado === 'descargado') {

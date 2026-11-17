@@ -198,11 +198,33 @@ una razón social, una identificación o un domicilio. Cada empresa lleva el
 rótulo fiscal de su país —CUIT la argentina, EIN la estadounidense—; no hay un
 rótulo genérico que sirva para las dos.
 
-La proforma de la empresa estadounidense sale con el título en inglés
-(**Proforma Invoice**) y su columna de descripción se llena con el campo
-`Description` de la tabla Artículos, en lugar de `Descripción`. Si un artículo
-no tiene `Description` cargada, la celda va vacía: no se usa el texto en
-castellano. La argentina sigue igual que antes.
+Cada empresa emite en su idioma: la argentina en castellano y la
+estadounidense **íntegramente en inglés**. Esto alcanza solo al documento —en
+pantalla, impreso, en el PDF y en la vista de celular—; la interfaz de la app
+(filtros, selección de renglones, botones) sigue en castellano siempre.
+
+Todos los textos fijos del documento viven en `src/lib/textos-proforma.ts`, un
+diccionario por idioma: títulos, rótulos, nombres de unidad, marcas de dato
+ausente y el texto inicial de condiciones. Ni la pantalla ni el PDF escriben
+una etiqueta por su cuenta. "Total" se escribe igual en los dos idiomas y está
+definido una sola vez; las abreviaturas `m` y `yd` tampoco cambian.
+
+En la proforma en inglés:
+
+- El título es **Proforma Invoice**.
+- La columna de descripción se llena con el campo `Description` de la tabla
+  Artículos, en lugar de `Descripción`. Si un artículo no tiene `Description`
+  cargada, la celda va vacía: no se usa el texto en castellano.
+- Los números van con punto decimal y coma de miles (`1,234.56 USD`) y la fecha
+  de emisión con el mes escrito (`November 17, 2026`), porque `17/11/2026` en
+  Estados Unidos se lee como mes/día. Es solo cómo se escriben: los importes y
+  las cantidades son los mismos que trae Airtable.
+- Las condiciones arrancan con su propio texto en inglés, también editable.
+
+Lo escrito sobre el documento (número, observaciones, condiciones) se guarda
+por empresa: al cambiar de empresa, el documento arranca con las condiciones
+en el idioma de la nueva. Lo que se carga en Airtable —el nombre del cliente,
+las observaciones de cada renglón— sale tal cual está escrito.
 
 La empresa elegida **no afecta el corte por moneda**: si entre los renglones
 tildados hay más de una moneda sigue saliendo un documento por cada una, y

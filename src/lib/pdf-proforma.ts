@@ -17,16 +17,12 @@
  *
  * El documento es un espejo del que se ve en pantalla: mismos textos, mismas
  * marcas de campo ausente, mismos formatos de monto y de fecha. Acá no se
- * calcula nada nuevo ni se completa nada que falte.
+ * calcula nada nuevo ni se completa nada que falte. Los textos fijos y los
+ * formatos salen del idioma de la empresa emisora (`src/lib/textos-proforma.ts`):
+ * este archivo no escribe ninguna etiqueta por su cuenta.
  */
 
-import {
-  descripcionPara,
-  LOGO,
-  renglonesEmisor,
-  type Empresa,
-} from '@/lib/empresas';
-import { formatearFecha, formatearMonto } from '@/lib/formato';
+import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
 import {
   FRACCIONES_COLUMNA,
   LADO_FOTO,
@@ -34,6 +30,13 @@ import {
   type CamposDocumento,
   type DocumentoProforma,
 } from '@/lib/proformas';
+import {
+  descripcionEn,
+  formatearFechaDocumento,
+  formatearNumero,
+  textosDe,
+  type Idioma,
+} from '@/lib/textos-proforma';
 
 type JsPDF = InstanceType<typeof import('jspdf').jsPDF>;
 
@@ -384,23 +387,24 @@ function partir(
    se muestra un cero.
 ------------------------------------------------------------------------ */
 
-function trozosDeMoneda(moneda: string | null): Trozo[] {
+function trozosDeMoneda(idioma: Idioma, moneda: string | null): Trozo[] {
   return moneda === null
-    ? [{ texto: 'Sin moneda', estilo: AUSENTE }]
+    ? [{ texto: textosDe(idioma).sinMoneda, estilo: AUSENTE }]
     : [{ texto: moneda, estilo: CELDA }];
 }
 
 /** Un monto sin moneda al lado no dice nada: van siempre juntos. */
 function trozosDeMonto(
+  idioma: Idioma,
   monto: number | null,
   marca: string,
   moneda: string | null,
 ): Trozo[] {
   if (monto === null) return [{ texto: marca, estilo: AUSENTE }];
   return [
-    { texto: formatearMonto(monto), estilo: CELDA },
+    { texto: formatearNumero(idioma, monto), estilo: CELDA },
     { texto: ' ', estilo: CELDA },
-    ...trozosDeMoneda(moneda),
+    ...trozosDeMoneda(idioma, moneda),
   ];
 }
 
@@ -423,6 +427,9 @@ function dibujar(
   fotos: Map<string, Uint8Array>,
 ): void {
   const { documento, cliente, campos, fecha, empresa } = datos;
+  const { idioma } = empresa;
+  const t = textosDe(idioma);
+  const numero = (valor: number) => formatearNumero(idioma, valor);
 
   let y = MARGEN;
 
@@ -458,7 +465,7 @@ function dibujar(
   // El avance no descuenta la subida: lo que sigue queda donde estaba.
   yIzquierda += ALTO_LOGO + aMm(20);
 
-  escribir(doc, empresa.titulo.toUpperCase(), TITULO, IZQUIERDA, yIzquierda + baseDeLinea(TITULO));
+  escribir(doc, t.titulo.toUpperCase(), TITULO, IZQUIERDA, yIzquierda + baseDeLinea(TITULO));
   yIzquierda += altoLinea(TITULO) + aMm(16);
 
   renglonesEmisor(empresa).forEach((texto, indice) => {
@@ -470,12 +477,15 @@ function dibujar(
   });
 
   const meta: [string, Trozo[]][] = [
-    ['N.º DE PROFORMA', [{ texto: campos.numero, estilo: META_VALOR }]],
-    ['FECHA DE EMISIÓN', [{ texto: formatearFecha(fecha), estilo: META_VALOR }]],
+    [t.numero.toUpperCase(), [{ texto: campos.numero, estilo: META_VALOR }]],
     [
-      'MONEDA',
+      t.fechaEmision.toUpperCase(),
+      [{ texto: formatearFechaDocumento(idioma, fecha), estilo: META_VALOR }],
+    ],
+    [
+      t.moneda.toUpperCase(),
       documento.moneda === null
-        ? [{ texto: 'Sin moneda', estilo: { ...AUSENTE, peso: 'italic' } }]
+        ? [{ texto: t.sinMoneda, estilo: { ...AUSENTE, peso: 'italic' } }]
         : [{ texto: documento.moneda, estilo: META_VALOR }],
     ],
   ];
@@ -495,7 +505,7 @@ function dibujar(
 
   /* --- Cliente ---------------------------------------------------------- */
 
-  escribir(doc, 'CLIENTE', ROTULO, IZQUIERDA, y + baseDeLinea(ROTULO));
+  escribir(doc, t.cliente.toUpperCase(), ROTULO, IZQUIERDA, y + baseDeLinea(ROTULO));
   y += altoLinea(ROTULO) + aMm(6);
   for (const linea of partir(doc, cliente, ANCHO, NOMBRE_CLIENTE)) {
     escribir(doc, linea, NOMBRE_CLIENTE, IZQUIERDA, y + baseDeLinea(NOMBRE_CLIENTE));
@@ -506,12 +516,14 @@ function dibujar(
 
   y += aMm(36);
 
-  const cabecerasNumericas = ['CANTIDAD', 'PRECIO UNITARIO', 'TOTAL'];
+  const cabecerasNumericas = [t.cantidad, t.precioUnitario, t.total].map(
+    (cabecera) => cabecera.toUpperCase(),
+  );
 
   const dibujarCabecera = (): void => {
     // La columna de la foto no lleva título, igual que en pantalla.
-    escribir(doc, 'CÓDIGO', ROTULO, IZQUIERDA_CODIGO, y + baseDeLinea(ROTULO));
-    escribir(doc, 'DESCRIPCIÓN', ROTULO, COLUMNAS[2], y + baseDeLinea(ROTULO));
+    escribir(doc, t.codigo.toUpperCase(), ROTULO, IZQUIERDA_CODIGO, y + baseDeLinea(ROTULO));
+    escribir(doc, t.descripcion.toUpperCase(), ROTULO, COLUMNAS[2], y + baseDeLinea(ROTULO));
     cabecerasNumericas.forEach((cabecera, indice) => {
       escribir(
         doc,
@@ -532,7 +544,7 @@ function dibujar(
     const estiloCodigo = renglon.codigo === null ? AUSENTE : CODIGO;
     const lineasCodigo = partir(
       doc,
-      renglon.codigo ?? 'Sin artículo',
+      renglon.codigo ?? t.sinArticulo,
       ANCHO_CODIGO,
       estiloCodigo,
     );
@@ -542,7 +554,7 @@ function dibujar(
 
     // La descripción va vacía mientras el dato no esté cargado en la base: es
     // una proforma que ve el cliente y acá no se inventa ningún texto.
-    const descripcion = descripcionPara(empresa, renglon);
+    const descripcion = descripcionEn(idioma, renglon);
     const lineasDescripcion = descripcion
       ? partir(doc, descripcion, ANCHO_DESCRIPCION, CELDA)
       : [];
@@ -621,25 +633,26 @@ function dibujar(
     // Cantidad y precio llevan la unidad del renglón, igual que en pantalla.
     const abreviatura = UNIDADES[renglon.unidad].abreviatura;
     const precio = trozosDeMonto(
+      idioma,
       renglon.precioUnitario,
-      'Sin precio',
+      t.sinPrecio,
       documento.moneda,
     );
 
     const baseNumeros = y + aMm(12) + baseDeLinea(CELDA);
     const columnasNumericas: Trozo[][] = [
       renglon.cantidad === null
-        ? [{ texto: 'Sin cantidad', estilo: AUSENTE }]
+        ? [{ texto: t.sinCantidad, estilo: AUSENTE }]
         : [
             {
-              texto: `${formatearMonto(renglon.cantidad)} ${abreviatura}`,
+              texto: `${numero(renglon.cantidad)} ${abreviatura}`,
               estilo: CELDA,
             },
           ],
       renglon.precioUnitario === null
         ? precio
         : [...precio, { texto: ` / ${abreviatura}`, estilo: CELDA }],
-      trozosDeMonto(renglon.total, 'Sin total', documento.moneda),
+      trozosDeMonto(idioma, renglon.total, t.sinTotal, documento.moneda),
     ];
 
     columnasNumericas.forEach((trozos, indice) => {
@@ -659,11 +672,11 @@ function dibujar(
   const filasDeTotal: [string, string][] = [
     ...documento.totalesPorUnidad.map(
       ({ unidad, cantidad }): [string, string] => [
-        UNIDADES[unidad].nombre,
-        `${formatearMonto(cantidad)} ${UNIDADES[unidad].abreviatura}`,
+        t.unidades[unidad],
+        `${numero(cantidad)} ${UNIDADES[unidad].abreviatura}`,
       ],
     ),
-    ['Renglones', String(documento.cantidadRenglones)],
+    [t.renglones, String(documento.cantidadRenglones)],
   ];
 
   const altoTotales =
@@ -688,7 +701,7 @@ function dibujar(
 
   escribir(
     doc,
-    'TOTAL',
+    t.total.toUpperCase(),
     TOTAL_FINAL_ROTULO,
     izquierdaTotales,
     y + baseDeLinea(TOTAL_FINAL_VALOR),
@@ -696,10 +709,10 @@ function dibujar(
   escribirCorrida(
     doc,
     [
-      { texto: formatearMonto(documento.total), estilo: TOTAL_FINAL_VALOR },
+      { texto: numero(documento.total), estilo: TOTAL_FINAL_VALOR },
       { texto: ' ', estilo: TOTAL_FINAL_MONEDA },
       ...(documento.moneda === null
-        ? [{ texto: 'Sin moneda', estilo: { ...AUSENTE, peso: 'italic' } as Estilo }]
+        ? [{ texto: t.sinMoneda, estilo: { ...AUSENTE, peso: 'italic' } as Estilo }]
         : [{ texto: documento.moneda, estilo: TOTAL_FINAL_MONEDA }]),
     ],
     DERECHA,
@@ -738,8 +751,8 @@ function dibujar(
     nuevaPagina();
   }
 
-  escribir(doc, 'OBSERVACIONES', ROTULO, IZQUIERDA, y + baseDeLinea(ROTULO));
-  escribir(doc, 'CONDICIONES Y VALIDEZ', ROTULO, derechaPie, y + baseDeLinea(ROTULO));
+  escribir(doc, t.observaciones.toUpperCase(), ROTULO, IZQUIERDA, y + baseDeLinea(ROTULO));
+  escribir(doc, t.condiciones.toUpperCase(), ROTULO, derechaPie, y + baseDeLinea(ROTULO));
   y += altoLinea(ROTULO) + aMm(6);
 
   const renglonesDelPie = Math.max(
@@ -810,7 +823,7 @@ export async function generarPdfProforma(datos: DatosPdf): Promise<File> {
   const nombre = nombreDeArchivo(datos.empresa, datos.campos.numero, datos.cliente);
 
   doc.setProperties({
-    title: `${datos.empresa.titulo} ${datos.campos.numero} — ${datos.cliente}`.trim(),
+    title: `${textosDe(datos.empresa.idioma).titulo} ${datos.campos.numero} — ${datos.cliente}`.trim(),
     subject: datos.cliente,
     author: datos.empresa.razonSocial,
   });
