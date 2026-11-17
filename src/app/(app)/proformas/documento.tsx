@@ -5,7 +5,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Ausente } from '@/components/ausente';
 import { Moneda } from '@/components/moneda';
-import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
+import {
+  descripcionPara,
+  LOGO,
+  renglonesEmisor,
+  type Empresa,
+} from '@/lib/empresas';
 import { fechaDeHoy } from '@/lib/fecha';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
 import {
@@ -119,7 +124,7 @@ export function Documento({
             unoptimized
             priority
           />
-          <h2 className="doc-titulo">Proforma</h2>
+          <h2 className="doc-titulo">{empresa.titulo}</h2>
           <address className="doc-emisor">
             <span className="doc-emisor-nombre">{nombreEmisor}</span>
             {datosEmisor.map((dato) => (
@@ -206,7 +211,9 @@ export function Documento({
               {/* La descripción sale del artículo vinculado. Si no está
                   cargada, la celda va vacía: es una proforma que ve el
                   cliente y no se inventa un texto que la base no tiene. */}
-              <td className="doc-descripcion">{renglon.descripcion}</td>
+              <td className="doc-descripcion">
+                {descripcionPara(empresa, renglon)}
+              </td>
               {/* Cada renglón lleva su unidad: el mismo documento puede tener
                   renglones en metros y en yardas. */}
               <td className="doc-num" data-rotulo="Cantidad">

@@ -226,6 +226,8 @@ export type Articulo = {
    * ni con ningún otro texto, porque sería inventar un dato que no está.
    */
   descripcion: string | null;
+  /** Descripción en inglés ("Description"), para la proforma de EE. UU. */
+  descripcionIngles: string | null;
   /**
    * Si el campo Imagen tiene algún adjunto. Es lo único que se guarda de la
    * foto: las URLs de Airtable caducan, así que la imagen se baja recién al
@@ -243,6 +245,7 @@ export async function indiceDeArticulos(): Promise<Map<string, Articulo>> {
     indice.set(registro.id, {
       codigo: texto(registro, 'Artículo'),
       descripcion: texto(registro, 'Descripción'),
+      descripcionIngles: texto(registro, 'Description'),
       tieneFoto: adjuntos(registro, CAMPO_FOTO).length > 0,
     });
   }

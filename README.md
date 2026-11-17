@@ -198,6 +198,12 @@ una razón social, una identificación o un domicilio. Cada empresa lleva el
 rótulo fiscal de su país —CUIT la argentina, EIN la estadounidense—; no hay un
 rótulo genérico que sirva para las dos.
 
+La proforma de la empresa estadounidense sale con el título en inglés
+(**Proforma Invoice**) y su columna de descripción se llena con el campo
+`Description` de la tabla Artículos, en lugar de `Descripción`. Si un artículo
+no tiene `Description` cargada, la celda va vacía: no se usa el texto en
+castellano. La argentina sigue igual que antes.
+
 La empresa elegida **no afecta el corte por moneda**: si entre los renglones
 tildados hay más de una moneda sigue saliendo un documento por cada una, y
 todos llevan la misma empresa. El nombre del archivo PDF la incluye, así dos

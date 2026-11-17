@@ -36,6 +36,8 @@ export type RenglonVenta = {
    * en toda la base y por eso sale en blanco. No se reemplaza por el código.
    */
   descripcion: string | null;
+  /** Descripción en inglés ("Description"), para la proforma de EE. UU. */
+  descripcionIngles: string | null;
   /**
    * Dirección de la foto del artículo dentro de la app, o `null` si el
    * artículo no tiene foto cargada. Nunca es una URL de Airtable: esas caducan
@@ -97,6 +99,7 @@ export async function cargarRenglonesVenta(): Promise<RenglonVenta[]> {
       cliente,
       codigo: articulo?.codigo ?? null,
       descripcion: articulo?.descripcion ?? null,
+      descripcionIngles: articulo?.descripcionIngles ?? null,
       foto: idArticulo && articulo?.tieneFoto ? urlDeFoto(idArticulo) : null,
       unidad,
       cantidad: numero(venta, unidad === 'yardas' ? 'Yardas' : 'Metros'),

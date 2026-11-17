@@ -20,6 +20,13 @@ export type Empresa = {
     numero: string;
   };
   domicilio: string;
+  /** Título del documento. La proforma estadounidense lo lleva en inglés. */
+  titulo: string;
+  /**
+   * Qué campo de la tabla Artículos llena la columna de descripción:
+   * "Descripción" (castellano) o "Description" (inglés).
+   */
+  idiomaDescripcion: 'es' | 'en';
 };
 
 export const EMPRESAS: Empresa[] = [
@@ -29,6 +36,8 @@ export const EMPRESAS: Empresa[] = [
     razonSocial: 'María Soledad Silva',
     identificacion: { rotulo: 'CUIT', numero: '27-30077604-9' },
     domicilio: 'Juan Segundo Fernández 930, San Isidro, Buenos Aires',
+    titulo: 'Proforma',
+    idiomaDescripcion: 'es',
   },
   {
     clave: 'eeuu',
@@ -36,6 +45,8 @@ export const EMPRESAS: Empresa[] = [
     razonSocial: 'SOLE SILVA TEXTILES LLC',
     identificacion: { rotulo: 'EIN', numero: '88-0742687' },
     domicilio: '1801 NE 123rd Street, Suite 307, North Miami, FL',
+    titulo: 'Proforma Invoice',
+    idiomaDescripcion: 'en',
   },
 ];
 
@@ -44,6 +55,19 @@ export const LOGO = '/solesilva.png';
 
 export function empresaPorClave(clave: string): Empresa | null {
   return EMPRESAS.find((empresa) => empresa.clave === clave) ?? null;
+}
+
+/**
+ * Descripción del renglón en el idioma de la empresa. Si el artículo no tiene
+ * cargado ese campo, la celda va vacía: no se usa el del otro idioma.
+ */
+export function descripcionPara(
+  empresa: Empresa,
+  renglon: { descripcion: string | null; descripcionIngles: string | null },
+): string | null {
+  return empresa.idiomaDescripcion === 'en'
+    ? renglon.descripcionIngles
+    : renglon.descripcion;
 }
 
 /**

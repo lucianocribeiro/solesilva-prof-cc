@@ -20,7 +20,12 @@
  * calcula nada nuevo ni se completa nada que falte.
  */
 
-import { LOGO, renglonesEmisor, type Empresa } from '@/lib/empresas';
+import {
+  descripcionPara,
+  LOGO,
+  renglonesEmisor,
+  type Empresa,
+} from '@/lib/empresas';
 import { formatearFecha, formatearMonto } from '@/lib/formato';
 import {
   FRACCIONES_COLUMNA,
@@ -453,7 +458,7 @@ function dibujar(
   // El avance no descuenta la subida: lo que sigue queda donde estaba.
   yIzquierda += ALTO_LOGO + aMm(20);
 
-  escribir(doc, 'PROFORMA', TITULO, IZQUIERDA, yIzquierda + baseDeLinea(TITULO));
+  escribir(doc, empresa.titulo.toUpperCase(), TITULO, IZQUIERDA, yIzquierda + baseDeLinea(TITULO));
   yIzquierda += altoLinea(TITULO) + aMm(16);
 
   renglonesEmisor(empresa).forEach((texto, indice) => {
@@ -537,8 +542,9 @@ function dibujar(
 
     // La descripción va vacía mientras el dato no esté cargado en la base: es
     // una proforma que ve el cliente y acá no se inventa ningún texto.
-    const lineasDescripcion = renglon.descripcion
-      ? partir(doc, renglon.descripcion, ANCHO_DESCRIPCION, CELDA)
+    const descripcion = descripcionPara(empresa, renglon);
+    const lineasDescripcion = descripcion
+      ? partir(doc, descripcion, ANCHO_DESCRIPCION, CELDA)
       : [];
 
     const altoTextoCodigo =
@@ -804,7 +810,7 @@ export async function generarPdfProforma(datos: DatosPdf): Promise<File> {
   const nombre = nombreDeArchivo(datos.empresa, datos.campos.numero, datos.cliente);
 
   doc.setProperties({
-    title: `Proforma ${datos.campos.numero} — ${datos.cliente}`.trim(),
+    title: `${datos.empresa.titulo} ${datos.campos.numero} — ${datos.cliente}`.trim(),
     subject: datos.cliente,
     author: datos.empresa.razonSocial,
   });
